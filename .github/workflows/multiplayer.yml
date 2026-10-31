@@ -1,0 +1,46 @@
+name: multiplayer
+
+on:
+  push:
+    paths:
+      - 'mp/**'
+      - 'vendor/enet/**'
+      - 'vendor/doctest/**'
+      - '.github/workflows/multiplayer.yml'
+  pull_request:
+    paths:
+      - 'mp/**'
+      - 'vendor/enet/**'
+      - 'vendor/doctest/**'
+      - '.github/workflows/multiplayer.yml'
+  workflow_dispatch:
+
+jobs:
+  build-test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure
+        run: cmake -S mp -B build-mp -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build-mp --config Release --parallel
+
+      - name: Test
+        run: ctest --test-dir build-mp -C Release --output-on-failure --timeout 300
+
+      - name: Upload relay and fake client
+        uses: actions/upload-artifact@v4
+        with:
+          name: mp-tools-${{ matrix.os }}
+          if-no-files-found: error
+          path: |
+            build-mp/revc-relay
+            build-mp/revc-fakeclient
+            build-mp/Release/revc-relay.exe
+            build-mp/Release/revc-fakeclient.exe
