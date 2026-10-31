@@ -22,6 +22,9 @@ CSessionClock::AddSample(uint32_t localSendMs, uint32_t hostMs, uint32_t localRe
 {
 	// Unsigned arithmetic so local or host time wrapping past 2^32 still works.
 	uint32_t rtt = localRecvMs - localSendMs;
+	// A pong that "arrived before it was sent" or took absurdly long is bogus.
+	if((int32_t)rtt < 0 || rtt > MAX_RTT_MS)
+		return;
 	SSample &s = m_samples[m_next];
 	s.rtt = rtt;
 	s.offset = hostMs + rtt / 2 - localRecvMs;

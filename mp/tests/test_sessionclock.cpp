@@ -57,3 +57,13 @@ TEST_CASE("clock handles local time wraparound")
 	// offset = 5000 + 20 - (base + 40)
 	CHECK(c.ToSession(base + 1040) == 6020);
 }
+
+TEST_CASE("clock ignores bogus samples")
+{
+	CSessionClock c;
+	c.AddSample(1000, 50000, 900);		// received before sent
+	c.AddSample(1000, 50000, 60000);	// 59 s round trip
+	CHECK(!c.IsSynced());
+	CHECK(c.RttMs() == 0);
+	CHECK(c.ToSession(1000) == 1000);
+}

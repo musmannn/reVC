@@ -187,6 +187,8 @@ CByteReader::ReadString(char *out, uint32_t outSize)
 bool
 CByteReader::ReadBytes(void *out, uint32_t n)
 {
+	if(n == 0)
+		return m_ok;
 	const uint8_t *p = Take(n);
 	if(!p)
 		return false;

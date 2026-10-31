@@ -8,7 +8,7 @@
 class CSessionClock
 {
 public:
-	enum { MAX_SAMPLES = 16, MIN_SAMPLES = 3 };
+	enum { MAX_SAMPLES = 16, MIN_SAMPLES = 3, MAX_RTT_MS = 10000 };
 private:
 	struct SSample
 	{
@@ -28,6 +28,7 @@ public:
 	// The host's session time is its own local time.
 	void SetIsHost(void);
 	// One ping round trip: sent at localSendMs, host stamped hostMs, received at localRecvMs.
+	// Samples with a negative RTT or one above MAX_RTT_MS are ignored.
 	void AddSample(uint32_t localSendMs, uint32_t hostMs, uint32_t localRecvMs);
 	// Host, or at least MIN_SAMPLES samples.
 	bool IsSynced(void) const { return m_isHost || m_numSamples >= MIN_SAMPLES; }

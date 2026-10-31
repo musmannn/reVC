@@ -78,6 +78,22 @@ TEST_CASE("pose ignores stale")
 	CHECK(fabsf(out.pos[0] - 10.0f) < 1e-4f);
 	REQUIRE(b.Sample(50, out));	// before the oldest (100)
 	CHECK(fabsf(out.pos[0] - 10.0f) < 1e-4f);
+	b.Push(MakePose(200, 20.0f, 0.1f));
+	REQUIRE(b.Sample(250, out));	// extrapolates from the newest (t=200)
+	CHECK(fabsf(out.pos[0] - 25.0f) < 1e-4f);
+}
+
+TEST_CASE("pose handles time wraparound")
+{
+	CPoseBuffer b;
+	b.Push(MakePose(0xFFFFFFF0u, 0.0f));
+	b.Push(MakePose(0x10u, 10.0f));
+	b.Push(MakePose(0xFFFFFFF8u, 99.0f));	// older than 0x10 across the wrap: ignored
+	SPose out;
+	REQUIRE(b.Sample(0, out));
+	CHECK(fabsf(out.pos[0] - 5.0f) < 1e-4f);
+	REQUIRE(b.Sample(0x10u, out));
+	CHECK(fabsf(out.pos[0] - 10.0f) < 1e-4f);
 }
 
 TEST_CASE("pose ring keeps the newest 16")

@@ -163,7 +163,7 @@ MpSanitizeName(const char *in, char out[MP_MAX_NAME_LEN + 1])
 	// Keep printable ASCII only, skipping leading spaces.
 	uint32_t len = 0;
 	for(const char *p = in; *p && len < MP_MAX_NAME_LEN; p++){
-		unsigned char c = (unsigned char)*p;
+		uint8_t c = (uint8_t)*p;
 		if(c < 0x20 || c > 0x7E)
 			continue;
 		if(c == ' ' && len == 0)

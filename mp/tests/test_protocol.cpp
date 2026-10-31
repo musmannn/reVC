@@ -187,3 +187,51 @@ TEST_CASE("sanitize name")
 	CHECK(MpSanitizeName("Ken\tRosenberg\x7F", out));
 	CHECK(strcmp(out, "KenRosenberg") == 0);
 }
+
+// Every proper prefix of a message body must fail to Read.
+template<typename T>
+static void
+CheckAllPrefixesFail(const T &msg)
+{
+	CByteWriter w;
+	msg.Write(w);
+	REQUIRE(!w.Overflowed());
+	for(uint32_t len = 1; len < w.Size(); len++){
+		CByteReader r(w.Data(), len);
+		uint8_t type = 0;
+		REQUIRE(r.ReadU8(type));
+		T out;
+		CAPTURE(len);
+		CHECK(!out.Read(r));
+	}
+}
+
+TEST_CASE("protocol rejects every truncation")
+{
+	SMsgCreateSession create;
+	strcpy(create.name, "Tommy");
+	CheckAllPrefixesFail(create);
+	SMsgSessionCreated created;
+	strcpy(created.code, "VICE-AB7K");
+	CheckAllPrefixesFail(created);
+	SMsgJoinSession join;
+	strcpy(join.code, "VICE-AB7K");
+	strcpy(join.name, "Lance");
+	CheckAllPrefixesFail(join);
+	SMsgJoinResult result;
+	CheckAllPrefixesFail(result);
+	SMsgPlayerJoined joined;
+	strcpy(joined.name, "Lance");
+	CheckAllPrefixesFail(joined);
+	SMsgPlayerLeft left;
+	CheckAllPrefixesFail(left);
+	SMsgSessionEnded ended;
+	CheckAllPrefixesFail(ended);
+	SMsgChat chat;
+	strcpy(chat.text, "hi");
+	CheckAllPrefixesFail(chat);
+	SMsgPing ping;
+	CheckAllPrefixesFail(ping);
+	SMsgPong pong;
+	CheckAllPrefixesFail(pong);
+}
