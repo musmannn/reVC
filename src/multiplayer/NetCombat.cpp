@@ -7,6 +7,7 @@
 #include "NetVehicles.h"
 #include "RemotePlayer.h"
 #include "SpawnPoints.h"
+#include "NetMatch.h"
 #include "MpText.h"
 #include "CivilianPed.h"
 #include "DMAudio.h"
@@ -86,8 +87,9 @@ CNetCombat::InterceptDamage(CPed *victim, CEntity *by, eWeaponType weapon, float
 
 	CRemotePlayer *remote = CRemotePlayer::FindByPed(victim);
 	if(remote){
-		// Puppets never take local damage; their owner decides.
-		if(IsLocalAttacker(by) && damage > 0.0f){
+		// Puppets never take local damage; their owner decides. No friendly
+		// fire between team deathmatch teammates.
+		if(IsLocalAttacker(by) && damage > 0.0f && !CNetMatch::IsTeammate(remote->m_id)){
 			SDamage msg;
 			msg.victimId = remote->m_id;
 			msg.weapon = (uint8)weapon;
@@ -228,7 +230,9 @@ CNetCombat::OnLocalRespawned(void)
 	CPlayerPed *player = FindPlayerPed();
 	if(player == nil)
 		return;
-	if(!sHaveOverride)
+	if(CNetMatch::IsPlaying())
+		CNetMatch::GiveMatchLoadout(player);
+	else if(!sHaveOverride)
 		CSpawnPoints::GiveLoadout(player);
 	player->m_lastDamEntity = nil;	// no registered reference; don't carry it over
 	sReportedDeath = false;

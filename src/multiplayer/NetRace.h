@@ -21,6 +21,7 @@ public:
 	static void Process(void);
 	static void Render(void);
 	static bool IsRacing(void);
+	static bool HostBusy(void);	// host: a race is pending or running
 	static void OnMessage(uint8 from, uint8 type, CByteReader &body);
 	static void OnPlayerJoined(uint8 id);
 	static void OnPlayerLeft(uint8 id);

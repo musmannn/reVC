@@ -19,6 +19,7 @@
 #include "WeaponInfo.h"
 #include "World.h"
 #include "NetVehicles.h"
+#include "NetMatch.h"
 #include "Vehicle.h"
 
 static CRemotePlayer sPlayers[MP_MAX_PLAYERS];
@@ -459,6 +460,7 @@ CRemotePlayer::RenderNameTags(void)
 
 		float scale = Clamp(1.0f - dist / NAME_TAG_DISTANCE, 0.35f, 1.0f);
 		CRGBA colour = ColourForId(p.m_id);
+		CNetMatch::TeamColour(p.m_id, colour);	// red/blue in team deathmatch
 		CFont::SetPropOn();
 		CFont::SetBackgroundOff();
 		CFont::SetScale(SCREEN_SCALE_X(0.5f * scale), SCREEN_SCALE_Y(0.9f * scale));

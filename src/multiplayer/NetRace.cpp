@@ -7,6 +7,7 @@
 #include "NetChat.h"
 #include "NetCombat.h"
 #include "NetVehicles.h"
+#include "NetMatch.h"
 #include "FreeroamMenu.h"
 #include "RemotePlayer.h"
 #include "MpText.h"
@@ -239,6 +240,12 @@ bool
 CNetRace::IsRacing(void)
 {
 	return sRace.phase != PHASE_NONE;
+}
+
+bool
+CNetRace::HostBusy(void)
+{
+	return CNetGame::IsHost() && sHost.IsBusy();
 }
 
 static void
@@ -552,7 +559,7 @@ CNetRace::Process(void)
 
 	if(sInvite.open && (int32)(now - sInvite.deadline) >= 0)
 		sInvite.open = false;
-	if(sInvite.open && !sInvite.accepted && sRace.phase == PHASE_NONE &&
+	if(sInvite.open && !sInvite.accepted && sRace.phase == PHASE_NONE && !CNetMatch::IsPlaying() &&
 	   !CNetChat::IsTyping() && CPad::GetPad(0)->GetFJustDown(2)){	// F3
 		if(FindRoute(sInvite.route) == nil){
 			// Joining would leave us "racing" on the host forever.
@@ -616,6 +623,14 @@ CNetRace::OnMessage(uint8 from, uint8 type, CByteReader &body)
 		SRaceRequest m;
 		if(!CNetGame::IsHost() || !m.Read(body))
 			return;
+		if(CNetMatch::HostBusy() && !sHost.IsBusy()){
+			// One mode at a time: a match is on.
+			SRaceCancel busy;
+			busy.raceId = sHost.RaceId();
+			busy.reason = RACE_BUSY;
+			sSink.SendCancel(busy, from);
+			return;
+		}
 		const SRaceRoute *route = FindRoute(m.route);
 		if(route == nil){
 			SRaceCancel cancel;
@@ -670,7 +685,7 @@ CNetRace::OnMessage(uint8 from, uint8 type, CByteReader &body)
 			if(m.ids[i] < MP_MAX_PLAYERS && CNetGame::PlayerName(m.ids[i]))
 				strcpy(sRacerNames[m.ids[i]], CNetGame::PlayerName(m.ids[i]));
 		for(int i = 0; i < m.n; i++)
-			if(m.ids[i] == me)
+			if(m.ids[i] == me && !CNetMatch::IsPlaying())
 				BeginRace(m, i);
 		break;
 	}

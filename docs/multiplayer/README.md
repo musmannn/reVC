@@ -12,6 +12,7 @@ Keep it up to date as work lands.
 | [Plan 1: network foundation](../superpowers/plans/2026-10-31-mp-1-network-foundation.md) | Protocol, invite codes, relay server, fake client, CI. Needs no game files, so a cloud session can do all of it. |
 | [Plan 2: free roam](../superpowers/plans/2026-10-31-mp-2-free-roam.md) | Game integration: menu, remote players, vehicles, combat, chat, free-roam menu. Compiles in CI; in-game checks need the game files. |
 | [Plan 3: races](../superpowers/plans/2026-10-31-mp-3-races.md) | Race rules (unit tested), race protocol, in-game race flow, route recorder, 4 routes. |
+| [Plan 4: deathmatch](../superpowers/plans/2026-10-31-mp-4-deathmatch.md) | Milestone 2: deathmatch, team deathmatch and scoreboards. |
 | [Relay setup](relay-setup.md) | Running `revc-relay` on a cloud VPS or a home PC. |
 | [Testing checklist](testing.md) | In-game manual test checklist, to run once the game is installed. |
 
@@ -20,7 +21,7 @@ Keep it up to date as work lands.
 | Milestone | Scope | State |
 |---|---|---|
 | 1 | Invite-code sessions, free roam, races | **Code complete, in-game unverified.** Plan 1 is complete (network layer, relay, fake client). Plans 2 and 3 are written and build with `MULTIPLAYER` on Linux, macOS and Windows in CI. The engine-free race rules, route parser and race protocol are unit tested, and a whole race runs with fake clients. Still waiting on the game files: every check in [testing.md](testing.md), plus recording the 4 built-in race routes. |
-| 2 | Deathmatch, team deathmatch, scoreboards | Not started |
+| 2 | Deathmatch, team deathmatch, scoreboards | **Code complete, in-game unverified** (Plan 4). Rules and the match host are unit tested; whole matches run with fake clients. The rules are builder calls waiting for the owner's review. |
 | 3 | More modes, race editor, dedicated server | Not started |
 
 ## Decisions log
@@ -72,6 +73,9 @@ revisited with a reason.
 | 2026-10-31 | Race checkpoint cylinders are drawn at the trigger radius (`C3dMarkers` size = radius, like the script's spheres), not twice it, so what you see is what counts. | Builder call |
 | 2026-10-31 | The race freeze uses its own player-control bit `0x800` instead of `PLAYERCONTROL_CUTSCENE`, so it can't fight cutscenes. | Builder call |
 | 2026-10-31 | Catch-up for late joiners (our vehicles, time/weather, an open race invite) goes out on their first `PLAYER_STATE`, not on the join notice: game messages sent while they're still loading the world are dropped. | Builder call |
+| 2026-10-31 | Milestone 2 rules (all builder calls, see Plan 4): kill +1, suicide/no killer −1, team kill −1 for the killer; deathmatch to 20, team deathmatch to 30, 10-minute limit; teams alternate by accept order; no friendly fire; match loadout pistol + Uzi + shotgun + full armour; leavers stay on the board; one race or match at a time. | Builder call |
+| 2026-10-31 | Kills are scored by the host from the `GMSG_DIED` reports players already send (shooter-side attribution), so matches add no kill message. Matches use the free-roam spawn points for now; dedicated arenas can come later. | Builder call |
+| 2026-10-31 | `Tab` shows a scoreboard in any session: the match scores during a match, otherwise who's in the session. | Builder call |
 | 2026-10-31 | Added `mp/common/NetInit.*` (ref-counted `enet_initialize`), which the relay and `CNetClient` share. This file isn't in the plan's file list. | Builder call |
 | 2026-10-31 | On `Stop()` the relay drains for 250 ms and then destroys the host without forcing disconnects. ENet discards a peer's undelivered packets when a disconnect arrives, which would swallow `SESSION_ENDED`. | Builder call |
 | 2026-10-31 | Received chat text and names are filtered to printable ASCII in `CNetClient` before they reach the game. | Builder call |
