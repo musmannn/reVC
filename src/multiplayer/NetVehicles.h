@@ -28,6 +28,9 @@ public:
 	static CVehicle *Find(uint16 id);
 	static uint16 IdOf(CVehicle *vehicle);
 	static bool IsRemote(CVehicle *vehicle);	// networked and owned by someone else
+	// The remote player who owns vehicle (pointer comparison only, so it's
+	// safe on a stale pointer), or MP_PLAYER_NONE.
+	static uint8 RemoteOwnerOf(const void *vehicle);
 
 	static void OnCreate(uint8 from, const SVehicleCreate &msg);
 	static void OnRemove(uint8 from, const SVehicleRemove &msg);

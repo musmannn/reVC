@@ -32,6 +32,7 @@ struct SNetVehicle
 	bool haveState;
 	uint32 lastStateMs;	// NetNow of the last state received
 	uint32 lastSentMs;
+	uint32 emptySinceMs;	// ours, nobody inside: when that started (0 = occupied)
 	uint8 seats[MP_MAX_SEATS];
 };
 
@@ -41,6 +42,18 @@ static uint16 sLocalSeatVehicle = MP_VEHICLE_NONE;	// what we told the host
 static uint8 sLocalSeat = MP_SEAT_NONE;
 
 static const uint32 ORPHAN_TIMEOUT_MS = 3000;	// owner gone and silent: go local
+static const uint32 RELEASE_EMPTY_MS = 120000;	// our car left empty this long stops syncing
+
+static bool
+IsEmpty(CVehicle *v)
+{
+	if(v->pDriver)
+		return false;
+	for(int i = 0; i < 3; i++)
+		if(v->pPassengers[i])
+			return false;
+	return true;
+}
 
 static SNetVehicle*
 FindEntry(uint16 id)
@@ -79,6 +92,7 @@ NewEntry(void)
 			e.haveState = false;
 			e.lastStateMs = 0;
 			e.lastSentMs = 0;
+			e.emptySinceMs = 0;
 			for(int s = 0; s < MP_MAX_SEATS; s++)
 				e.seats[s] = MP_PLAYER_NONE;
 			return &e;
@@ -259,6 +273,17 @@ CNetVehicles::IdOf(CVehicle *vehicle)
 	return e ? e->id : MP_VEHICLE_NONE;
 }
 
+uint8
+CNetVehicles::RemoteOwnerOf(const void *vehicle)
+{
+	for(int i = 0; i < MAX_NET_VEHICLES; i++){
+		SNetVehicle &e = sVehicles[i];
+		if(e.used && e.vehicle && e.vehicle == vehicle)
+			return e.owner != CNetGame::MyId() ? e.owner : MP_PLAYER_NONE;
+	}
+	return MP_PLAYER_NONE;
+}
+
 bool
 CNetVehicles::IsRemote(CVehicle *vehicle)
 {
@@ -312,6 +337,7 @@ CreatePending(SNetVehicle &e)
 	vehicle->m_nZoneLevel = CTheZones::GetLevelFromPosition(&pos);
 	vehicle->bHasBeenOwnedByPlayer = true;
 	CWorld::Add(vehicle);
+	CStreaming::SetModelIsDeletable(c.model);
 	SetVehicle(e, vehicle);
 	e.pending = false;
 }
@@ -459,8 +485,8 @@ CNetVehicles::OnSeat(const SVehicleSeat &msg)
 		e->poses.Clear();
 		e->haveState = false;
 		e->lastStateMs = CNetGame::NetNow();
-		if(e->vehicle && msg.playerId != me)
-			e->vehicle->SetStatus(STATUS_PLAYER_DISABLED);
+		if(e->vehicle && e->vehicle->GetStatus() != STATUS_WRECKED)
+			e->vehicle->SetStatus(msg.playerId == me ? STATUS_PLAYER : STATUS_PLAYER_DISABLED);
 	}
 }
 
@@ -556,8 +582,13 @@ PlaceRemote(SNetVehicle &e, uint32 renderTime)
 	vehicle->bEngineOn = !!(s.flags & VSF_ENGINE);
 	vehicle->m_bSirenOrAlarm = !!(s.flags & VSF_SIREN);
 	vehicle->m_fHealth = (float)s.health;
-	if(s.health == 0 && vehicle->GetStatus() != STATUS_WRECKED)
-		vehicle->BlowUpCar(nil);
+	if(s.health == 0 && vehicle->GetStatus() != STATUS_WRECKED){
+		// Puppets die by their own player's state, not by our copy blowing up;
+		// the owner as culprit keeps the blast from counting twice for us.
+		CRemotePlayer::UnseatAllFrom(vehicle);
+		CRemotePlayer *owner = CRemotePlayer::Get(e.owner);
+		vehicle->BlowUpCar(owner ? (CEntity*)owner->m_pPed : nil);
+	}
 	vehicle->GetMatrix().UpdateRW();
 	vehicle->UpdateRwFrame();
 	vehicle->RemoveAndAdd();
@@ -593,14 +624,41 @@ CNetVehicles::Update(uint32 renderTime)
 			FreeEntry(e);
 			continue;
 		}
-		if(e.owner == me)
+		if(e.owner == me){
+			// An abandoned car of ours goes back to being ordinary traffic,
+			// so it can be culled and its slot reused.
+			if(!IsEmpty(e.vehicle)){
+				e.emptySinceMs = 0;
+				continue;
+			}
+			if(e.emptySinceMs == 0)
+				e.emptySinceMs = now | 1;
+			else if(now - e.emptySinceMs >= RELEASE_EMPTY_MS){
+				SVehicleRemove msg;
+				msg.vehicleId = e.id;
+				CByteWriter w;
+				msg.Write(w);
+				Send(MP_ROUTE_ALL_BUT_SELF, 0, true, w);
+				if(e.vehicle->VehicleCreatedBy == MISSION_VEHICLE){
+					e.vehicle->VehicleCreatedBy = RANDOM_VEHICLE;
+					CCarCtrl::NumMissionCars--;
+					CCarCtrl::NumRandomCars++;
+				}
+				FreeEntry(e);
+			}
 			continue;
+		}
 		if(e.owner == MP_PLAYER_NONE || (CNetGame::PlayerName(e.owner) == nil && now - e.lastStateMs > ORPHAN_TIMEOUT_MS)){
 			// Nobody owns it any more: it becomes an ordinary local car.
 			e.vehicle->SetStatus(STATUS_ABANDONED);
 			FreeEntry(e);
 			continue;
 		}
+		// We're getting in as its new driver: don't override our own input
+		// while the host's seat confirmation is on its way.
+		CPlayerPed *local = FindPlayerPed();
+		if(local && local->bInVehicle && e.vehicle->pDriver == local)
+			continue;
 		if(e.haveState)
 			PlaceRemote(e, renderTime);
 	}
@@ -678,13 +736,15 @@ CNetVehicles::RemoveAllOwnedBy(uint8 player)
 		if(e.owner != player)
 			continue;
 		bool localInside = e.vehicle && local && local->bInVehicle && local->m_pMyVehicle == e.vehicle;
-		if(next != MP_PLAYER_NONE && (next != me || (localInside && e.vehicle->pDriver == local))){
+		if(next != MP_PLAYER_NONE){
+			// Everyone computes the same next owner, who takes over whatever
+			// seat they're in.
 			e.owner = next;
 			e.poses.Clear();
 			e.haveState = false;
 			e.lastStateMs = CNetGame::NetNow();
-			if(next == me && e.vehicle)
-				e.vehicle->SetStatus(STATUS_PLAYER);
+			if(next == me && e.vehicle && e.vehicle->GetStatus() != STATUS_WRECKED)
+				e.vehicle->SetStatus(e.vehicle->pDriver == local ? STATUS_PLAYER : STATUS_ABANDONED);
 			continue;
 		}
 		CVehicle *vehicle = e.vehicle;
@@ -733,11 +793,16 @@ CNetVehicles::OnLocalPlayerWantsToJack(CPed *player, CVehicle *vehicle)
 		if(vehicle->pPassengers[i] == nil)
 			freeSeat = true;
 	player->RestorePreviousState();
-	if(!freeSeat || vehicle->IsBike())
+	if(!freeSeat || vehicle->IsBike()){
+		player->RestorePreviousObjective();
 		return true;
+	}
 	uint8 status = vehicle->GetStatus();
 	player->SetObjective(OBJECTIVE_ENTER_CAR_AS_PASSENGER, vehicle);
 	player->WarpPedIntoCar(vehicle);
+	// WarpPedIntoCar's passenger path doesn't count the passenger, but
+	// RemovePassenger uncounts them.
+	vehicle->m_nNumPassengers++;
 	// WarpPedIntoCar hands the player's car STATUS_PLAYER; the friend drives it.
 	vehicle->SetStatus(status);
 	return true;

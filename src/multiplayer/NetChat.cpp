@@ -13,6 +13,8 @@
 #include "Pad.h"
 #include "Sprite2d.h"
 #include "Weather.h"
+#include "PlayerPed.h"
+#include "PlayerInfo.h"
 
 enum { MAX_LINES = 8, LINE_LEN = 160 };
 static const uint32 LINE_SHOW_MS = 10000;
@@ -32,6 +34,7 @@ static CMpTextInput sInput;
 static char sBuffer[MP_MAX_CHAT_LEN + 1];
 static bool sTyping;
 static bool sReleaseNextFrame;	// keep controls off for the frame Enter was pressed
+static bool sSwallowEsc;	// an Esc that belonged to chat is still held
 static uint32 sLastWorldSentMs;
 static int16 sForcedWeather = -1;
 
@@ -81,10 +84,20 @@ CNetChat::Reset(void)
 	sNumLines = 0;
 }
 
+// Makes a held Esc look "not just pressed" to everything after us.
+static void
+SwallowEsc(void)
+{
+	CPad::OldKeyState.ESC = CPad::NewKeyState.ESC;
+	sSwallowEsc = CPad::NewKeyState.ESC != 0;
+}
+
 void
 CNetChat::Update(void)
 {
 	CPad *pad = CPad::GetPad(0);
+	if(sSwallowEsc && !sTyping)
+		SwallowEsc();
 	if(sReleaseNextFrame){
 		sReleaseNextFrame = false;
 		pad->SetEnablePlayerControls(PLAYERCONTROL_MP_CHAT);
@@ -107,12 +120,21 @@ CNetChat::Update(void)
 		return;	// the T itself isn't typed
 	}
 
+	CPlayerPed *player = FindPlayerPed();
+	if(player == nil || player->DyingOrDead()){
+		// Respawning re-enables every control; don't keep typing into it.
+		sInput.Cancel();
+		sTyping = false;
+		pad->SetEnablePlayerControls(PLAYERCONTROL_MP_CHAT);
+		return;
+	}
 	CMpTextInput::eResult result = sInput.Update();
 	// Esc closes the chat, never the pause menu behind it.
-	CPad::NewKeyState.ESC = 0;
-	CPad::OldKeyState.ESC = 0;
-	if(result == CMpTextInput::EDITING)
+	SwallowEsc();
+	if(result == CMpTextInput::EDITING){
+		pad->SetDisablePlayerControls(PLAYERCONTROL_MP_CHAT);
 		return;
+	}
 	if(result == CMpTextInput::COMMITTED && sBuffer[0])
 		CNetGame::Client().SendChat(sBuffer);	// shows up when the echo comes back
 	sTyping = false;

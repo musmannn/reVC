@@ -172,6 +172,9 @@ CRemotePlayer::Spawn(void)
 	ped->SetHeading(heading);
 	CWorld::Add(ped);
 	m_pPed = ped;
+	// The engine may delete the puppet itself (e.g. killed in an exploding
+	// car); the reference turns m_pPed into nil when it does.
+	m_pPed->RegisterReference((CEntity**)&m_pPed);
 	m_bSpawned = true;
 	m_currentAnim = ANIM_STD_IDLE;
 	m_bShownDead = false;
@@ -283,7 +286,9 @@ CRemotePlayer::UpdateSeat(void)
 		wantSeat = m_last.seat;
 	}
 	bool seated = m_pPed->bInVehicle;
-	if(seated && m_pSeatedIn == want && (want == nil || wantSeat == m_seat || wantSeat != MP_SEAT_DRIVER))
+	// Passenger slots may differ visually; driver vs passenger must match.
+	bool sameKind = (wantSeat == MP_SEAT_DRIVER) == (m_seat == MP_SEAT_DRIVER);
+	if(seated && m_pSeatedIn == want && want != nil && sameKind)
 		return;
 	if(!seated && want == nil)
 		return;
@@ -302,10 +307,16 @@ CRemotePlayer::Despawn(void)
 	if(m_pPed && m_pPed->bInVehicle)
 		Unseat(false);
 	if(m_pPed){
-		CWorld::Remove(m_pPed);
-		delete m_pPed;
+		CPed *ped = m_pPed;
+		ped->CleanUpOldReference((CEntity**)&m_pPed);
 		m_pPed = nil;
+		CWorld::Remove(ped);
+		delete ped;
 	}
+	if(m_pSeatedIn)
+		m_pSeatedIn->CleanUpOldReference((CEntity**)&m_pSeatedIn);
+	m_pSeatedIn = nil;
+	m_seat = MP_SEAT_NONE;
 	m_bSpawned = false;
 }
 
@@ -370,6 +381,13 @@ CRemotePlayer::Update(uint32 renderTime)
 {
 	if(!m_bUsed || !m_bHaveState)
 		return;
+	if(m_bSpawned && m_pPed == nil){
+		// The engine deleted the puppet: tidy up and build a new one.
+		if(m_blip >= 0)
+			CRadar::ClearBlip(m_blip);
+		m_blip = -1;
+		Despawn();
+	}
 	if(!m_bSpawned){
 		if(m_modelId < 0 || !CStreaming::HasModelLoaded(m_modelId))
 			return;

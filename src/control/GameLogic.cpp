@@ -163,6 +163,9 @@ CGameLogic::Update()
 					}
 				}
 				CEventList::Initialise();
+#ifdef SCREEN_DROPLETS
+				ScreenDroplets::Initialise();
+#endif
 				CCarCtrl::ClearInterestingVehicleList();
 				CNetCombat::GetRespawnPoint(vecRestartPos, fRestartFloat);
 				RestorePlayerStuffDuringResurrection(pPlayerInfo.m_pPed, vecRestartPos, fRestartFloat);
@@ -171,6 +174,8 @@ CGameLogic::Update()
 				TheCamera.SetMotionBlur(0, 0, 0, 0, MOTION_BLUR_NONE);
 				CPad::GetPad(0)->StopShaking(0);
 				CReferences::RemoveReferencesToPlayer();
+				CPopulation::m_CountDownToPedsAtStart = 10;
+				CCarCtrl::CountDownToCarsAtStart = 10;
 				CPad::GetPad(CWorld::PlayerInFocus)->DisablePlayerControls = PLAYERCONTROL_ENABLED;
 				TheCamera.SetFadeColour(200, 200, 200);
 				TheCamera.Fade(4.0f, FADE_IN);

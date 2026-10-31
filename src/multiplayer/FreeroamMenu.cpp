@@ -26,6 +26,7 @@
 #include "WaterLevel.h"
 #include "World.h"
 #include "Zones.h"
+#include "Script.h"
 
 struct SMenuVehicle { const char *label; int32 model; };
 struct SMenuWeapon { const char *label; eWeaponType weapon; };
@@ -95,10 +96,18 @@ static const SWeaponCategory sWeaponCategories[] = {
 	{ "Heavy", sHeavy, ARRAY_SIZE(sHeavy) },
 };
 
-enum ePage { PAGE_ROOT, PAGE_VEHICLE_CATS, PAGE_VEHICLES, PAGE_WEAPON_CATS, PAGE_WEAPONS };
+enum ePage { PAGE_ROOT, PAGE_VEHICLE_CATS, PAGE_VEHICLES, PAGE_WEAPON_CATS, PAGE_WEAPONS, PAGE_EXTRA_LIST };
 
 enum { MAX_EXTRA_ITEMS = 4 };
-struct SExtraItem { const char *label; void (*action)(void); };
+struct SExtraItem
+{
+	const char *label;
+	void (*action)(void);
+	// Or a list page:
+	int (*count)(void);
+	const char *(*itemLabel)(int);
+	void (*select)(int);
+};
 static SExtraItem sExtra[MAX_EXTRA_ITEMS];
 static int sNumExtra;
 
@@ -121,6 +130,7 @@ NumRows(void)
 	case PAGE_VEHICLES: return sVehicleCategories[sCategory].count;
 	case PAGE_WEAPON_CATS: return ARRAY_SIZE(sWeaponCategories);
 	case PAGE_WEAPONS: return sWeaponCategories[sCategory].count;
+	case PAGE_EXTRA_LIST: return Max(1, sExtra[sCategory].count());
 	}
 	return 0;
 }
@@ -143,6 +153,7 @@ RowLabel(int row)
 	case PAGE_VEHICLES: return sVehicleCategories[sCategory].list[row].label;
 	case PAGE_WEAPON_CATS: return sWeaponCategories[row].label;
 	case PAGE_WEAPONS: return sWeaponCategories[sCategory].list[row].label;
+	case PAGE_EXTRA_LIST: return sExtra[sCategory].count() > 0 ? sExtra[sCategory].itemLabel(row) : "(none)";
 	}
 	return "";
 }
@@ -156,6 +167,7 @@ PageTitle(void)
 	case PAGE_VEHICLES: return sVehicleCategories[sCategory].label;
 	case PAGE_WEAPON_CATS: return "WEAPONS";
 	case PAGE_WEAPONS: return sWeaponCategories[sCategory].label;
+	case PAGE_EXTRA_LIST: return sExtra[sCategory].label;
 	}
 	return "";
 }
@@ -178,9 +190,23 @@ void
 CFreeroamMenu::AddItem(const char *label, void (*action)(void))
 {
 	if(sNumExtra < MAX_EXTRA_ITEMS && label && action){
-		sExtra[sNumExtra].label = label;
-		sExtra[sNumExtra].action = action;
-		sNumExtra++;
+		SExtraItem &e = sExtra[sNumExtra++];
+		memset(&e, 0, sizeof(e));
+		e.label = label;
+		e.action = action;
+	}
+}
+
+void
+CFreeroamMenu::AddList(const char *label, int (*count)(void), const char *(*itemLabel)(int), void (*select)(int))
+{
+	if(sNumExtra < MAX_EXTRA_ITEMS && label && count && itemLabel && select){
+		SExtraItem &e = sExtra[sNumExtra++];
+		memset(&e, 0, sizeof(e));
+		e.label = label;
+		e.count = count;
+		e.itemLabel = itemLabel;
+		e.select = select;
 	}
 }
 
@@ -234,8 +260,12 @@ CFreeroamMenu::SpawnAndEnter(int32 model, const CVector &where, float headingRad
 			return nil;
 		}
 		pos.z = level;
-	}else
-		pos.z = CWorld::FindGroundZForCoord(pos.x, pos.y);
+	}else{
+		// The surface under us, not the highest one (bridges, roofs).
+		bool found = false;
+		float z = CWorld::FindGroundZFor3DCoord(pos.x, pos.y, pos.z + 2.0f, &found);
+		pos.z = found ? z : CWorld::FindGroundZForCoord(pos.x, pos.y);
+	}
 
 	// Load it right now, like the script's LOAD_ALL_MODELS_NOW.
 	CStreaming::RequestModel(model, STREAMFLAGS_DONT_REMOVE);
@@ -246,7 +276,7 @@ CFreeroamMenu::SpawnAndEnter(int32 model, const CVector &where, float headingRad
 		return nil;
 
 	// One spawned car each: the previous one goes if nobody is in it.
-	if(sLastSpawned && IsEmpty(sLastSpawned))
+	if(sLastSpawned && IsEmpty(sLastSpawned) && !CNetVehicles::IsRemote(sLastSpawned))
 		CNetVehicles::RemoveOwned(sLastSpawned);
 	if(player->bInVehicle)
 		CNetVehicles::WarpLocalPlayerOut();
@@ -268,9 +298,10 @@ CFreeroamMenu::SpawnAndEnter(int32 model, const CVector &where, float headingRad
 	vehicle->AutoPilot.m_nTempAction = TEMPACT_NONE;
 	vehicle->bEngineOn = true;
 	vehicle->m_nZoneLevel = CTheZones::GetLevelFromPosition(&pos);
-	vehicle->bHasBeenOwnedByPlayer = true;
-	CCarCtrl::NumMissionCars++;
+	vehicle->bHasBeenOwnedByPlayer = true;	// the constructor already counted it as a mission car
+	CTheScripts::ClearSpaceForMissionEntity(pos, vehicle);
 	CWorld::Add(vehicle);
+	CStreaming::SetModelIsDeletable(model);
 
 	player->SetObjective(OBJECTIVE_ENTER_CAR_AS_DRIVER, vehicle);
 	player->WarpPedIntoCar(vehicle);
@@ -309,9 +340,15 @@ Activate(int row)
 			return;
 		}
 		if(row - ROOT_FIXED < sNumExtra){
-			void (*action)(void) = sExtra[row - ROOT_FIXED].action;
+			SExtraItem &e = sExtra[row - ROOT_FIXED];
+			if(e.count){
+				sCategory = row - ROOT_FIXED;
+				sPage = PAGE_EXTRA_LIST;
+				sCursor = 0;
+				return;
+			}
 			CFreeroamMenu::Close();
-			action();
+			e.action();
 			return;
 		}
 		CFreeroamMenu::Close();
@@ -329,6 +366,13 @@ Activate(int row)
 		sCategory = row;
 		sPage = PAGE_WEAPONS;
 		sCursor = 0;
+		return;
+	case PAGE_EXTRA_LIST:
+		if(row < sExtra[sCategory].count()){
+			void (*select)(int) = sExtra[sCategory].select;
+			CFreeroamMenu::Close();
+			select(row);
+		}
 		return;
 	case PAGE_WEAPONS: {
 		eWeaponType w = sWeaponCategories[sCategory].list[row].weapon;
@@ -348,6 +392,7 @@ Back(void)
 	case PAGE_VEHICLE_CATS: case PAGE_WEAPON_CATS: sPage = PAGE_ROOT; sCursor = 0; break;
 	case PAGE_VEHICLES: sPage = PAGE_VEHICLE_CATS; sCursor = sCategory; break;
 	case PAGE_WEAPONS: sPage = PAGE_WEAPON_CATS; sCursor = sCategory; break;
+	case PAGE_EXTRA_LIST: sPage = PAGE_ROOT; sCursor = ROOT_FIXED + sCategory; break;
 	}
 }
 

@@ -65,22 +65,17 @@ IsLocalAttacker(CEntity *by)
 	return player->bInVehicle && by == player->m_pMyVehicle && player->m_pMyVehicle->pDriver == player;
 }
 
-// The remote player behind an entity: their puppet, or the car they drive.
+// The remote player behind an entity: their puppet, or a car they own.
+// Pointer comparisons only: m_lastDamEntity can be stale.
 static uint8
 RemoteIdOf(CEntity *entity)
 {
 	if(entity == nil)
 		return MP_PLAYER_NONE;
-	if(entity->IsPed()){
-		CRemotePlayer *p = CRemotePlayer::FindByPed((CPed*)entity);
-		return p ? p->m_id : MP_PLAYER_NONE;
-	}
-	if(entity->IsVehicle()){
-		CVehicle *v = (CVehicle*)entity;
-		CRemotePlayer *p = CRemotePlayer::FindByPed(v->pDriver);
-		return p ? p->m_id : MP_PLAYER_NONE;
-	}
-	return MP_PLAYER_NONE;
+	CRemotePlayer *p = CRemotePlayer::FindByPed((CPed*)entity);
+	if(p)
+		return p->m_id;
+	return CNetVehicles::RemoteOwnerOf(entity);
 }
 
 bool
@@ -117,7 +112,10 @@ void
 CNetCombat::OnDamage(uint8 from, const SDamage &msg)
 {
 	CPlayerPed *player = FindPlayerPed();
-	if(player == nil || msg.victimId != CNetGame::MyId() || msg.weapon >= WEAPONTYPE_TOTALWEAPONS)
+	// Weapons plus ramming, run-overs, explosions and drive-bys; not the
+	// pickup pseudo-types.
+	if(player == nil || msg.victimId != CNetGame::MyId() || msg.weapon >= WEAPONTYPE_ANYMELEE ||
+	   msg.weapon == WEAPONTYPE_HEALTH || msg.weapon == WEAPONTYPE_ARMOUR)
 		return;
 	if(msg.amount <= 0.0f || msg.amount > 1000.0f)
 		return;
@@ -232,6 +230,7 @@ CNetCombat::OnLocalRespawned(void)
 		return;
 	if(!sHaveOverride)
 		CSpawnPoints::GiveLoadout(player);
+	player->m_lastDamEntity = nil;	// no registered reference; don't carry it over
 	sReportedDeath = false;
 	SRespawned msg;
 	const CVector &pos = player->GetPosition();
