@@ -183,6 +183,12 @@ if(${PROJECT}_VENDORED_LIBRW)
 else()
     find_package(librw REQUIRED)
 endif()
+
+option(${PROJECT}_MULTIPLAYER "Build multiplayer (relay, tools, game integration)" ON)
+if(${PROJECT}_MULTIPLAYER)
+    add_subdirectory(mp)
+endif()
+
 add_subdirectory(src)
 
 if(${PROJECT}_INSTALL)
