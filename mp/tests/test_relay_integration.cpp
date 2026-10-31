@@ -188,7 +188,9 @@ public:
 		for(CRawPeer *r : raws)
 			r->Service();
 	}
-	bool Pump(std::function<bool(void)> pred, uint32_t timeoutMs = 3000)
+	// sleepBetween=false spins (yielding) instead of sleeping, so OS sleep
+	// granularity doesn't skew timing-sensitive tests.
+	bool Pump(std::function<bool(void)> pred, uint32_t timeoutMs = 3000, bool sleepBetween = true)
 	{
 		uint32_t start = NowMs();
 		for(;;){
@@ -197,7 +199,10 @@ public:
 				return true;
 			if(NowMs() - start >= timeoutMs)
 				return false;
-			std::this_thread::sleep_for(std::chrono::milliseconds(1));
+			if(sleepBetween)
+				std::this_thread::sleep_for(std::chrono::milliseconds(1));
+			else
+				std::this_thread::yield();
 		}
 	}
 	void PumpFor(uint32_t ms)
@@ -602,7 +607,9 @@ TEST_CASE("relay: clock syncs")
 	SNode &host = h.HostNode();
 	SNode &c1 = h.JoinNode(host.rec.code, "Lance");
 	CHECK(!c1.client.Clock().IsSynced());
-	h.PumpFor(4000);
+	// No sleeps: each ping leg then takes about the same time, which is what
+	// the RTT/2 estimate assumes (macOS runners oversleep 1 ms by several ms).
+	h.Pump([](){ return false; }, 4000, false);
 	CHECK(c1.client.Clock().IsSynced());
 	uint32_t now = NowMs();
 	int32_t diff = (int32_t)(c1.client.SessionTime(now) - host.client.SessionTime(now));
