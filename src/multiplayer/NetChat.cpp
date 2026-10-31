@@ -7,6 +7,7 @@
 #include "MpText.h"
 #include "MpTextInput.h"
 #include "RemotePlayer.h"
+#include "RouteRecorder.h"
 #include "Clock.h"
 #include "Font.h"
 #include "Frontend.h"
@@ -135,7 +136,8 @@ CNetChat::Update(void)
 		pad->SetDisablePlayerControls(PLAYERCONTROL_MP_CHAT);
 		return;
 	}
-	if(result == CMpTextInput::COMMITTED && sBuffer[0])
+	// Lines starting with '/' are local commands (route recorder), never sent.
+	if(result == CMpTextInput::COMMITTED && sBuffer[0] && !CRouteRecorder::OnCommand(sBuffer))
 		CNetGame::Client().SendChat(sBuffer);	// shows up when the echo comes back
 	sTyping = false;
 	sReleaseNextFrame = true;

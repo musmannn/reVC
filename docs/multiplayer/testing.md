@@ -119,3 +119,15 @@ whole race runs without the game: relay + `revc-fakeclient --host --start-race "
 - [ ] Nobody accepts: only the starter races (a time trial).
 - [ ] Start a race while one is running: "A race is already running".
 - [ ] Non-racers see the invite and "Lance won … in mm:ss.hh" only.
+
+## Plan 3, Task 5: route recorder and built-in routes
+
+- [ ] `/pos` prints your coordinates and heading; `/` lines never reach other players.
+- [ ] `/rec new Test`, `/rec type sprint`, drive a car and `/rec vehicle`, `/rec grid` ×2, `/rec cp` ×3, `/rec undo`, `/rec save` writes `data/mp/races/test.route`, adds it to `index.txt`, and it appears under *Start race >* right away.
+- [ ] `/rec save` with too few checkpoints says why and saves nothing.
+- [ ] Record and drive the 4 built-in routes (not done yet: needs the game):
+  - [ ] **Ocean Drive Sprint**: sprint along Ocean Drive, north to south.
+  - [ ] **Starfish Loop**: circuit, 3 laps, around Starfish Island.
+  - [ ] **Bridge Run**: sprint from Ocean Beach across a bridge to Downtown.
+  - [ ] **Little Havana Circuit**: circuit, 2 laps, through Little Havana / Little Haiti.
+  - Each: 8 grid slots about 4 m apart sideways and 8 m back, 8–20 checkpoints, a sports car; every checkpoint reachable and no grid slot inside a building.
