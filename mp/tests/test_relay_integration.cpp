@@ -664,8 +664,11 @@ TEST_CASE("relay: host again from inside a callback")
 	REQUIRE(h.Pump([&](){ c1.Service(NowMs(), &rec); return rec.ready; }));
 	h.Pump([&](){ c1.Service(NowMs(), &rec); return false; }, 5200);	// older than the connect timeout
 	host.client.Leave();
-	REQUIRE(h.Pump([&](){ c1.Service(NowMs(), &rec); return rec.ready || rec.joinFailed >= 0; }));
+	// First the end (which re-hosts from inside the callback), then the new session.
+	REQUIRE(h.Pump([&](){ c1.Service(NowMs(), &rec); return rec.ended >= 0; }));
+	CHECK(rec.ended == END_HOST_LEFT);
 	CHECK(rec.rehosted);
+	REQUIRE(h.Pump([&](){ c1.Service(NowMs(), &rec); return rec.ready || rec.joinFailed >= 0; }));
 	CHECK(rec.joinFailed == -1);
 	CHECK(rec.ready);
 	CHECK(rec.isHost);
