@@ -12,6 +12,7 @@
 #include "NetCombat.h"
 #include "NetChat.h"
 #include "FreeroamMenu.h"
+#include "NetRace.h"
 #include "GameProtocol.h"
 #include "Frontend.h"
 #include "Messages.h"
@@ -70,6 +71,7 @@ EndLocal(const char *statusKey)
 	CNetChat::Reset();
 	CNetChat::ReleaseWorld();
 	CFreeroamMenu::Reset();
+	CNetRace::Reset();
 	sWantWorld = false;
 	sInGame = false;
 	sPendingStart = false;
@@ -120,6 +122,7 @@ public:
 			CRemotePlayer::Add(id, sRoster[id].name);
 			CNetVehicles::OnPlayerJoined(id);
 			CNetChat::SendWorld();
+			CNetRace::OnPlayerJoined(id);
 			char line[64];
 			snprintf(line, sizeof(line), "%s joined", sRoster[id].name);
 			CNetChat::AddLine(line, CNetChat::NOTICE);
@@ -135,8 +138,10 @@ public:
 			CNetChat::AddLine(line, CNetChat::NOTICE);
 		}
 		sRoster[id].used = false;
-		if(sInGame)
+		if(sInGame){
+			CNetRace::OnPlayerLeft(id);
 			CNetVehicles::RemoveAllOwnedBy(id);
+		}
 		CRemotePlayer::Remove(id);
 	}
 	void OnSessionEnded(eEndReason reason) override
@@ -157,6 +162,10 @@ public:
 		// Game messages only make sense once the multiplayer world runs.
 		if(!sInGame)
 			return;
+		if(type >= GMSG_RACE_FIRST && type <= GMSG_LAST){
+			CNetRace::OnMessage(from, type, body);
+			return;
+		}
 		switch(type){
 		case GMSG_PLAYER_STATE: {
 			SPlayerState state;
@@ -356,6 +365,7 @@ CNetGame::Process(void)
 	CNetVehicles::Update(renderTime);
 	CRemotePlayer::UpdateAll();
 	CNetCombat::Update();
+	CNetRace::Process();
 	if(now - sLastStateSentMs >= 1000 / MP_SNAPSHOT_HZ){
 		sLastStateSentMs = now;
 		SendLocalState();
@@ -370,6 +380,7 @@ CNetGame::Render2d(void)
 	if(!IsActive())
 		return;
 	CRemotePlayer::RenderNameTags();
+	CNetRace::Render();
 	CNetChat::Render();
 	CFreeroamMenu::Render();
 }
@@ -386,6 +397,7 @@ CNetGame::OnWorldShutdown(void)
 {
 	// The engine is about to clear the world: drop our puppets first so
 	// nothing points at deleted peds. The session itself stays.
+	CNetRace::Reset();
 	CRemotePlayer::RemoveAll();
 	CNetVehicles::Clear();
 	CFreeroamMenu::Reset();
@@ -571,6 +583,7 @@ CNetGame::OnWorldStarted(void)
 		CSpawnPoints::GiveLoadout(player);
 	}
 	CNetChat::SendWorld();
+	CNetRace::Init();
 }
 
 void

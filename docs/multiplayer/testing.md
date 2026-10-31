@@ -100,3 +100,22 @@ sudo tc qdisc add dev lo root netem delay 75ms
 - [ ] *Health* and *Armour* fill up.
 - [ ] `F2` while typing chat does nothing; `T` while the menu is open does nothing.
 - [ ] Spawning a boat on land shows "Must be on water".
+
+## Plan 3, Task 4: in-game races
+
+Engine-free race rules and the race protocol are unit tested (`ctest`), and a
+whole race runs without the game: relay + `revc-fakeclient --host --start-race "Test"` + two
+`revc-fakeclient --join CODE --bot race`. These checks need the game:
+
+- [ ] F2 → *Start race >* lists the routes from `data/mp/races/index.txt`; picking one posts "Tommy started … press F3 to join (15s)" to everyone, with a countdown top right.
+- [ ] A full race against 2 `--bot race` bots: grid, frozen 3-2-1-GO with beeps, checkpoints, results.
+- [ ] Two real players race; both see identical final results.
+- [ ] Checkpoints: yellow cylinder + radar blip for the current one, a fainter one for the next, red for the finish; cutting a corner past a checkpoint doesn't count it.
+- [ ] HUD shows POS n/m, LAP (circuits), TIME and the checkpoint counter.
+- [ ] Blow up the car mid-race: respawn at the last checkpoint in a fresh car, facing the next one, frozen for 1 s; the timer keeps running.
+- [ ] Hold `H` for 1.5 s while flipped: respawn the same way. Leave the car for 5 s: respawn too.
+- [ ] Die mid-race: respawn at the last checkpoint (not a free-roam spawn point), then get a fresh car.
+- [ ] Kill a racer's game mid-race: they're DNF and the race still ends.
+- [ ] Nobody accepts: only the starter races (a time trial).
+- [ ] Start a race while one is running: "A race is already running".
+- [ ] Non-racers see the invite and "Lance won … in mm:ss.hh" only.
