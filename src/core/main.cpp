@@ -77,9 +77,9 @@
 #include "VarConsole.h"
 #ifdef USE_OUR_VERSIONING
 #include "GitSHA1.h"
+#endif
 #ifdef MULTIPLAYER
 #include "NetGame.h"
-#endif
 #endif
 
 GlobalScene Scene;

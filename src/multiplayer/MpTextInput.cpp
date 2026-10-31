@@ -53,7 +53,7 @@ CMpTextInput::Update(void)
 
 	// Printable keys arrive as their ASCII codes, letters in upper case.
 	bool shift = ShiftHeld();
-	for(int c = ' '; c <= '~' && len < m_maxLen; c++){
+	for(int c = ' '; c < '~' && len < m_maxLen; c++){	// no '~': CFont token marker
 		if(!pad->GetCharJustDown(c))
 			continue;
 		char ch = (char)c;

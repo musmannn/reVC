@@ -2,6 +2,8 @@
 
 #ifdef MULTIPLAYER
 
+#include <chrono>
+
 #include "NetGame.h"
 #include "MpText.h"
 #include "SpawnPoints.h"
@@ -15,6 +17,7 @@
 #include "Vehicle.h"
 #include "Timer.h"
 #include "World.h"
+#include "Streaming.h"
 
 #ifdef LOAD_INI_SETTINGS
 void SaveINISettings();
@@ -81,8 +84,10 @@ public:
 		strncpy(sCode, code, sizeof(sCode) - 1);
 		sCode[sizeof(sCode) - 1] = '\0';
 		ClearRoster();
-		sRoster[myId].used = true;
-		strncpy(sRoster[myId].name, CNetGame::ms_playerName, MP_MAX_NAME_LEN);
+		if(myId < MP_MAX_PLAYERS){
+			sRoster[myId].used = true;
+			strncpy(sRoster[myId].name, CNetGame::ms_playerName, MP_MAX_NAME_LEN);
+		}
 		sStatusKey = nil;
 		sWantWorld = true;
 		sPendingStart = true;
@@ -217,7 +222,9 @@ static CNetGameListener sListener;
 uint32
 CNetGame::NetNow(void)
 {
-	return (uint32)(CTimer::GetCurrentTimeInCycles() / CTimer::GetCyclesPerMillisecond());
+	// Real time, independent of the game timer (which stops while paused).
+	using namespace std::chrono;
+	return (uint32)duration_cast<milliseconds>(steady_clock::now().time_since_epoch()).count();
 }
 
 uint32
@@ -474,7 +481,28 @@ CNetGame::LastStatusKey(void)
 bool
 CNetGame::WantsWorld(void)
 {
-	return sWantWorld;
+	// Loading a save always means the story.
+	return sWantWorld && !FrontEndMenuManager.m_bWantToLoad;
+}
+
+static bool sFreeroamScriptLoaded;
+
+void
+CNetGame::SetFreeroamScriptLoaded(bool loaded)
+{
+	sFreeroamScriptLoaded = loaded;
+}
+
+bool
+CNetGame::FreeroamScriptLoaded(void)
+{
+	return sFreeroamScriptLoaded;
+}
+
+void
+CNetGame::ShowNoSave(void)
+{
+	ShowMessage("MP_NOSAVE");
 }
 
 void
@@ -482,9 +510,15 @@ CNetGame::OnWorldStarted(void)
 {
 	if(!sWantWorld)
 		return;
+	if(FrontEndMenuManager.m_bWantToLoad){
+		// A save is being loaded: that's single player.
+		LeaveSession();
+		return;
+	}
 	if(!sClient.IsInSession()){
 		// The session died while the world was loading.
 		EndLocal(sStatusKey ? sStatusKey : "MP_LOST");
+		sPendingEnd = sStatusKey != nil;
 		return;
 	}
 	sInGame = true;
@@ -497,9 +531,12 @@ CNetGame::OnWorldStarted(void)
 		CVector pos;
 		float heading;
 		CSpawnPoints::Pick(sClient.MyId(), pos, heading);
+		CStreaming::LoadSceneCollision(pos);
+		CStreaming::LoadScene(pos);
 		player->Teleport(pos);
 		player->m_fRotationCur = heading;
 		player->m_fRotationDest = heading;
+		player->SetHeading(heading);
 		CSpawnPoints::GiveLoadout(player);
 	}
 }

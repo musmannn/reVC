@@ -173,6 +173,6 @@ struct SMsgPong
 	bool Read(CByteReader &r);
 };
 
-// Trims, keeps printable ASCII 0x20-0x7E and truncates to MP_MAX_NAME_LEN.
+// Trims, keeps printable ASCII 0x20-0x7E except '~', truncates to MP_MAX_NAME_LEN.
 // Returns false (and an empty out) if nothing is left.
 bool MpSanitizeName(const char *in, char out[MP_MAX_NAME_LEN + 1]);

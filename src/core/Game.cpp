@@ -602,7 +602,10 @@ bool CGame::ShutDown(void)
 {
 #ifdef MULTIPLAYER
 	CNetGame::OnWorldShutdown();
-	CNetGame::Shutdown();
+	// On PC a restart from a running game (New Game, or a session starting)
+	// goes through ShutDown too; only a real shutdown leaves the session.
+	if (!FrontEndMenuManager.m_bWantToRestart)
+		CNetGame::Shutdown();
 #endif
 #ifdef USE_TEXTURE_POOL
 	_TexturePoolsUnknown(false);

@@ -8,12 +8,13 @@
 #include "NetInit.h"
 
 // Keep printable ASCII only, so received text is safe to draw or print.
+// '~' is dropped too: the game's font treats it as the start of a token.
 static void
 FilterText(char *s)
 {
 	char *out = s;
 	for(; *s; s++)
-		if((uint8_t)*s >= 0x20 && (uint8_t)*s <= 0x7E)
+		if((uint8_t)*s >= 0x20 && (uint8_t)*s <= 0x7E && *s != '~')
 			*out++ = *s;
 	*out = '\0';
 }

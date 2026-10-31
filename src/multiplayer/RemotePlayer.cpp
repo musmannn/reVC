@@ -179,6 +179,9 @@ CRemotePlayer::Spawn(void)
 	m_pendingWeapon = m_last.weapon;
 
 	m_blip = CRadar::SetEntityBlip(BLIP_CHAR, CPools::GetPedRef(ped), BlipColour(m_id), BLIP_DISPLAY_BLIP_ONLY);
+	// SetEntityBlip ignores its colour argument.
+	CRadar::ChangeBlipColour(m_blip, BlipColour(m_id));
+	CRadar::ChangeBlipBrightness(m_blip, 1);
 	CRadar::ChangeBlipScale(m_blip, 2);
 }
 
@@ -316,8 +319,9 @@ CRemotePlayer::UpdateAnimation(void)
 		}
 		return;
 	}
-	if(m_bShownDead){
-		// Alive again (respawned): start from a fresh puppet.
+	if(m_bShownDead || m_pPed->DyingOrDead()){
+		// Alive again (respawned), or something killed the puppet locally:
+		// start from a fresh puppet.
 		Despawn();
 		return;
 	}
@@ -337,7 +341,9 @@ CRemotePlayer::UpdateAnimation(void)
 		}
 	}
 	if(anim != m_currentAnim){
-		CAnimManager::BlendAnimation(m_pPed->GetClump(), m_pPed->m_animGroup, anim, 4.0f);
+		// Walk-style groups only hold walk/run/sprint/idle; the rest live in STD.
+		bool moveAnim = anim == ANIM_STD_WALK || anim == ANIM_STD_RUN || anim == ANIM_STD_RUNFAST || anim == ANIM_STD_IDLE;
+		CAnimManager::BlendAnimation(m_pPed->GetClump(), moveAnim ? m_pPed->m_animGroup : ASSOCGRP_STD, anim, 4.0f);
 		m_currentAnim = anim;
 	}
 }

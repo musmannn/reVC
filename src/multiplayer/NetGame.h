@@ -56,6 +56,11 @@ public:
 
 	// CTheScripts::Init loads freeroam_miami.scm while this is true.
 	static bool WantsWorld(void);
+	// The running world uses freeroam_miami.scm, so mission scripts must be
+	// read from it too (CTheScripts::OpenScript).
+	static void SetFreeroamScriptLoaded(bool loaded);
+	static bool FreeroamScriptLoaded(void);
+	static void ShowNoSave(void);
 	// End of CGame::Initialise / ReInitGameObjectVariables.
 	static void OnWorldStarted(void);
 	// Start of CGame::ShutDownForRestart / ShutDown.

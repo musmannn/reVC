@@ -186,6 +186,8 @@ TEST_CASE("sanitize name")
 	CHECK(strcmp(out, "01234567890123456789012") == 0);
 	CHECK(MpSanitizeName("Ken\tRosenberg\x7F", out));
 	CHECK(strcmp(out, "KenRosenberg") == 0);
+	CHECK(MpSanitizeName("~r~Lance~", out));
+	CHECK(strcmp(out, "rLance") == 0);
 }
 
 // Every proper prefix of a message body must fail to Read.

@@ -733,6 +733,11 @@ int CTheScripts::ScriptToLoad = 0;
 int CTheScripts::OpenScript()
 {
 	CFileMgr::ChangeDir("\\");
+#ifdef MULTIPLAYER
+	// Mission scripts are read from the same file as the running world.
+	if (CNetGame::FreeroamScriptLoaded())
+		return CFileMgr::OpenFile("data\\freeroam_miami.scm", "rb");
+#endif
 	switch (ScriptToLoad) {
 	case 0: return CFileMgr::OpenFile("data\\main.scm", "rb");
 	case 1: return CFileMgr::OpenFile("data\\freeroam_miami.scm", "rb");
@@ -763,17 +768,13 @@ void CTheScripts::Init()
 
 #ifdef MULTIPLAYER
 	// A multiplayer world starts from the free-roam script, not the story.
-	int savedScriptToLoad = ScriptToLoad;
-	if(CNetGame::WantsWorld())
-		ScriptToLoad = 1;
+	CNetGame::SetFreeroamScriptLoaded(CNetGame::WantsWorld());
 #endif
 	int mainf = OpenScript();
-#ifdef MULTIPLAYER
-	ScriptToLoad = savedScriptToLoad;
-#endif
 #else
 	CFileMgr::SetDir("data");
 #ifdef MULTIPLAYER
+	CNetGame::SetFreeroamScriptLoaded(CNetGame::WantsWorld());
 	int mainf = CFileMgr::OpenFile(CNetGame::WantsWorld() ? "freeroam_miami.scm" : "main.scm", "rb");
 #else
 	int mainf = CFileMgr::OpenFile("main.scm", "rb");

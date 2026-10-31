@@ -7,6 +7,7 @@
 #include "platform.h"
 #ifdef MULTIPLAYER
 #include "MpMenu.h"
+#include "NetGame.h"
 #endif
 #include "Frontend.h"
 #include "Font.h"
@@ -5669,6 +5670,13 @@ CMenuManager::SwitchMenuOnAndOff()
 		}
 	}
 
+#ifdef MULTIPLAYER
+	// Saving is disabled in a multiplayer session.
+	if (m_bActivateSaveMenu && CNetGame::IsActive()) {
+		m_bActivateSaveMenu = false;
+		CNetGame::ShowNoSave();
+	}
+#endif
 	// Just entered the save/safe zone
 	if (m_bActivateSaveMenu) {
 		DoRWStuffStartOfFrame(0, 0, 0, 0, 0, 0, 255);

@@ -164,7 +164,8 @@ MpSanitizeName(const char *in, char out[MP_MAX_NAME_LEN + 1])
 	uint32_t len = 0;
 	for(const char *p = in; *p && len < MP_MAX_NAME_LEN; p++){
 		uint8_t c = (uint8_t)*p;
-		if(c < 0x20 || c > 0x7E)
+		// '~' starts a CFont token in the game, so it's never part of a name.
+		if(c < 0x20 || c > 0x7E || c == '~')
 			continue;
 		if(c == ' ' && len == 0)
 			continue;
