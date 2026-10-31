@@ -35,3 +35,13 @@ sudo tc qdisc add dev lo root netem delay 75ms
 - [ ] With no session, New Game still runs the story normally (main.scm, intro).
 - [ ] Holding `R`/`D` at New Game still picks the debug scripts as before.
 - [ ] Spawn point coordinates in `src/multiplayer/SpawnPoints.cpp` are on the ground near the Ocean View Hotel (they're placeholders).
+
+## Plan 2, Task 4: Multiplayer frontend page
+
+- [ ] *Multiplayer* appears on the start menu and the pause menu.
+- [ ] Type a name with Backspace; Esc restores the old value; the name persists after restarting the game (`reVC.ini` `[Multiplayer] Name`).
+- [ ] While typing, arrow keys/Enter/Esc don't navigate the menu, and Esc doesn't close it.
+- [ ] Shift gives capitals in the name; the code field is always upper case.
+- [ ] Join with the wrong code `VICE-ZZZZ` shows "No session with that code" in the *Session* row.
+- [ ] The 9th player gets "Session is full (8 players)".
+- [ ] In a session, the *Session* row shows `VICE-XXXX - n/8 players`; Name/Relay/Host/Join are greyed out and Leave works.

@@ -503,8 +503,9 @@ static_assert(false, "SUPPORT_XBOX_SCRIPT and SUPPORT_MOBILE_SCRIPT are mutually
 #endif
 
 // Multiplayer (desktop only). See docs/multiplayer/README.md. The build defines
-// NO_MULTIPLAYER when the mp/ libraries aren't part of it.
-#if !defined(ANDROID) && !defined(__SWITCH__) && !defined(RW_PS2) && !defined(NO_MULTIPLAYER)
+// NO_MULTIPLAYER when the mp/ libraries aren't part of it. Its menu page needs
+// CUSTOM_FRONTEND_OPTIONS.
+#if !defined(ANDROID) && !defined(__SWITCH__) && !defined(RW_PS2) && !defined(NO_MULTIPLAYER) && defined(CUSTOM_FRONTEND_OPTIONS)
 	#define MULTIPLAYER
 #endif
 

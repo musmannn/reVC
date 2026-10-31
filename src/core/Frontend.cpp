@@ -5,6 +5,9 @@
 #ifndef PS2_MENU
 #include "crossplatform.h"
 #include "platform.h"
+#ifdef MULTIPLAYER
+#include "MpMenu.h"
+#endif
 #include "Frontend.h"
 #include "Font.h"
 #include "Pad.h"
@@ -3494,6 +3497,12 @@ CMenuManager::Process(void)
 	InitialiseChangedLanguageSettings();
 
 	if (m_bMenuActive) {
+#if defined(MULTIPLAYER) && defined(CUSTOM_FRONTEND_OPTIONS)
+		// A Multiplayer text field is being typed in: keys go to it, not the menu.
+		if (MpMenuIsEditing())
+			MpMenuUpdateEditing();
+		else
+#endif
 		UserInput();
 		ProcessFileActions();
 		DMAudio.Service();

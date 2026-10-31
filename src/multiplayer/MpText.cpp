@@ -18,6 +18,9 @@ static SMpTextEntry sTexts[] = {
 	{ "MP_JOIN", "JOIN WITH CODE" },
 	{ "MP_NAME", "NAME" },
 	{ "MP_RELAY", "RELAY SERVER" },
+	{ "MP_RLAY", "RELAY SERVER" },	// menu keys are at most 7 chars
+	{ "MP_LEAV", "LEAVE SESSION" },
+	{ "MP_STAT", "SESSION" },
 	{ "MP_CODE", "CODE" },
 	{ "MP_LEAVE", "LEAVE SESSION" },
 	{ "MP_CONNECTING", "Connecting..." },
