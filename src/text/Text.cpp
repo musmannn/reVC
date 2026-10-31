@@ -11,6 +11,9 @@
 #endif
 #include "Text.h"
 #include "Timer.h"
+#ifdef MADE_BY_TEXT
+#include "Font.h"
+#endif
 
 wchar WideErrorString[25];
 
@@ -126,6 +129,14 @@ CText::Get(const char *key)
 	wchar *mpText = MpGetText(key);
 	if(mpText)
 		return mpText;
+#endif
+#ifdef MADE_BY_TEXT
+	if(key && strcmp(key, "FEM_MBU") == 0){
+		static wchar madeBy[16];
+		if(madeBy[0] == 0)
+			AsciiToUnicode("MADE BY USMAN", madeBy);
+		return madeBy;
+	}
 #endif
 	uint8 result = false;
 #if defined (FIX_BUGS) || defined(FIX_BUGS_64)
