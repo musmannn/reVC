@@ -30,7 +30,7 @@ CopyString(char *dst, const char *src, uint32_t dstSize)
 
 CNetClient::CNetClient(void)
 	: m_host(nullptr), m_peer(nullptr), m_state(STATE_IDLE), m_wantHost(false), m_isHost(false),
-	  m_haveStartTime(false), m_netAcquired(false), m_myId(MP_PLAYER_NONE), m_startMs(0), m_lastPingMs(0)
+	  m_haveStartTime(false), m_netAcquired(false), m_myId(MP_PLAYER_NONE), m_startMs(0), m_lastPingMs(0), m_generation(0)
 {
 	m_code[0] = '\0';
 	m_joinCode[0] = '\0';
@@ -72,6 +72,7 @@ CNetClient::Connect(const char *relayAddr, uint16_t port)
 	// Notice a dead relay within 15 s, like the relay notices a dead client.
 	enet_peer_timeout(m_peer, 0, 5000, 15000);
 	m_state = STATE_CONNECTING;
+	m_generation++;
 	m_isHost = false;
 	m_myId = MP_PLAYER_NONE;
 	m_code[0] = '\0';
@@ -198,11 +199,13 @@ CNetClient::Service(uint32_t nowMs, INetClientListener *l)
 	}
 
 	// A callback may Leave() and then Host()/Join() again. If so, stop: the
-	// new connection gets its own start time on the next Service().
-	_ENetHost *host = m_host;
+	// new connection gets its own start time on the next Service(). (Compare
+	// a generation, not the ENetHost pointer: malloc may hand the new host
+	// the old one's address.)
+	uint32_t generation = m_generation;
 	ENetEvent ev;
 	for(;;){
-		if(m_host != host || m_host == nullptr)
+		if(m_generation != generation || m_host == nullptr)
 			return;
 		int r = enet_host_service(m_host, &ev, 0);
 		// r < 0 is a socket error (e.g. an ICMP "port unreachable" on
@@ -238,11 +241,12 @@ CNetClient::Service(uint32_t nowMs, INetClientListener *l)
 		default:
 			break;
 		}
-		if(m_state == STATE_IDLE || m_host != host)
+		if(m_state == STATE_IDLE || m_generation != generation)
 			return;
 	}
 
-	if((m_state == STATE_CONNECTING || m_state == STATE_WAITING) && nowMs - m_startMs >= CONNECT_TIMEOUT_MS){
+	if((m_state == STATE_CONNECTING || m_state == STATE_WAITING) && m_haveStartTime &&
+	   nowMs - m_startMs >= CONNECT_TIMEOUT_MS){
 		Fail(l);
 		return;
 	}

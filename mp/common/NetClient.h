@@ -55,6 +55,7 @@ private:
 	uint8_t m_myId;
 	uint32_t m_startMs;
 	uint32_t m_lastPingMs;
+	uint32_t m_generation;	// bumped per connection; detects re-entrant Host()/Join()
 	char m_code[MP_INVITE_CODE_LEN + 1];
 	char m_joinCode[MP_INVITE_CODE_LEN + 1];
 	char m_name[MP_MAX_NAME_LEN + 1];
