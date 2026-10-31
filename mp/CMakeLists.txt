@@ -102,6 +102,14 @@ add_executable(revc-relay
 target_link_libraries(revc-relay PRIVATE relaycore)
 mp_target_settings(revc-relay)
 
+# --- Tools ------------------------------------------------------------------
+add_executable(revc-fakeclient
+	tools/fakeclient.cpp
+)
+find_package(Threads REQUIRED)
+target_link_libraries(revc-fakeclient PRIVATE mpcommon Threads::Threads)
+mp_target_settings(revc-fakeclient)
+
 # --- Tests --------------------------------------------------------------------
 add_executable(mp_tests
 	tests/test_main.cpp
@@ -113,7 +121,6 @@ add_executable(mp_tests
 	tests/test_relay_integration.cpp
 )
 target_include_directories(mp_tests PRIVATE ${MP_VENDOR_DIR}/doctest)
-find_package(Threads REQUIRED)
 target_link_libraries(mp_tests PRIVATE relaycore mpcommon Threads::Threads)
 mp_target_settings(mp_tests)
 add_test(NAME mp_tests COMMAND mp_tests)
