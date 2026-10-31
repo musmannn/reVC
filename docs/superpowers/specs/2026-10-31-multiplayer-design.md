@@ -23,6 +23,7 @@ Rockstar's scale. Something playable early beats a big design that never ships.
 | First milestone | **Free roam + races.** Deathmatch and other modes come in a later milestone. |
 | Traffic & pedestrians | **Local per player.** Each client spawns its own ambient traffic and peds as in single player. Only players, the vehicles players are using, and mode objects (checkpoints etc.) are synced. |
 | Where the relay runs | **Both a cheap/free cloud VPS and the owner's own PC.** The relay is one program that runs on either. The game ships with the owner's cloud relay address built in as the default, so friends only type the code. The Multiplayer menu has a *Relay server* setting to switch to another address (e.g. the owner's PC, with one forwarded port) without editing files. Deployment notes cover both: a Linux VPS (e.g. Oracle Cloud free tier) and a home PC with port forwarding. |
+| Platforms | **macOS, Linux and Windows**, all first-class, cross-play between them. |
 | Weapons, health, armour | **Spawn loadout + weapon menu.** Players spawn and respawn with a basic loadout (e.g. pistol + bat). The same in-game menu that spawns vehicles also gives weapons, health and armour. No world pickups or Ammu-Nation in milestone 1. |
 
 ## Goals (milestone 1)
@@ -60,8 +61,10 @@ Rockstar's scale. Something playable early beats a big design that never ships.
 5. **Invite-code lobby/relay server:** small standalone program that hands out
    codes, matches joiners to hosts, and relays game traffic when players
    can't reach each other directly.
-6. **Platforms:** Linux and Windows desktop builds can play together. macOS
-   should work through the same code paths. Android is out of scope.
+6. **Platforms:** macOS, Linux and Windows desktop are all first-class, and
+   any mix of them can play in the same session. The game, relay and fake
+   client build on all three, and CI builds and tests on all three. Android
+   is out of scope.
 
 ## Non-goals (milestone 1)
 

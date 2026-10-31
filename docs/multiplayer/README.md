@@ -9,13 +9,16 @@ Keep it up to date as work lands.
 | Doc | What it is |
 |---|---|
 | [Design spec](../superpowers/specs/2026-10-31-multiplayer-design.md) | What we're building and why: goals, non-goals, anti-goals, constraints. The source of truth for scope. |
-| Implementation plan | *Not written yet.* Will live in `docs/superpowers/plans/` once the design is approved. |
+| [Plan 1: network foundation](../superpowers/plans/2026-10-31-mp-1-network-foundation.md) | Protocol, invite codes, relay server, fake client, CI. Needs no game files, so a cloud session can do all of it. |
+| [Plan 2: free roam](../superpowers/plans/2026-10-31-mp-2-free-roam.md) | Game integration: menu, remote players, vehicles, combat, chat, free-roam menu. Compiles in CI; in-game checks need the game files. |
+| [Plan 3: races](../superpowers/plans/2026-10-31-mp-3-races.md) | Race rules (unit tested), race protocol, in-game race flow, route recorder, 4 routes. |
+| `docs/multiplayer/testing.md` | In-game manual test checklist (created in Plan 2). |
 
 ## Status
 
 | Milestone | Scope | State |
 |---|---|---|
-| 1 | Invite-code sessions, free roam, races | Design approved; plan in progress |
+| 1 | Invite-code sessions, free roam, races | Design approved, plans written. Next: Plan 1 Task 1 |
 | 2 | Deathmatch, team deathmatch, scoreboards | Not started |
 | 3 | More modes, race editor, dedicated server | Not started |
 
@@ -31,10 +34,16 @@ revisited with a reason.
 | 2026-10-31 | Milestone 1 = **free roam + races**. | Owner |
 | 2026-10-31 | **Ambient traffic/peds stay local** per player; only players, their vehicles and mode objects sync. | Owner |
 | 2026-10-31 | Relay runs on **both** a cheap/free cloud VPS (default address built in) and the owner's own PC (switch via a *Relay server* menu setting). | Owner |
+| 2026-10-31 | **macOS, Linux and Windows** are all first-class with cross-play; CI builds and tests on all three. | Owner |
 | 2026-10-31 | Free roam gives a **spawn loadout + weapon/health/armour menu**; no world pickups or Ammu-Nation in milestone 1. | Owner |
 | 2026-10-31 | Race results ordered by racers' own crossing timestamps on a shared session clock, not by packet arrival. | Builder call |
 | 2026-10-31 | Up to 8 players per session. Story script does not run in multiplayer. | Builder call |
 | 2026-10-31 | Remote players are extra ped entities fed by the network. The local player stays the only `CPlayerPed`. | Builder call |
+| 2026-10-31 | Remote players are `CCivilianPed` puppets with `CharCreatedBy = UNK_CHAR`, so the engine skips their AI and physics and they are never culled. | Builder call |
+| 2026-10-31 | The multiplayer world starts from upstream `gamefiles/data/freeroam_miami.scm` instead of `main.scm`. Any pickups it places are local-only, like ambient traffic. | Builder call |
+| 2026-10-31 | Shooter-side hit detection, victim-side damage. Remote players' shots are visual only on your screen. | Builder call |
+| 2026-10-31 | Remote players' enter/exit-vehicle is shown as a warp in milestone 1; the local player keeps the full animation. | Builder call |
+| 2026-10-31 | Engine-free code lives in `mp/` (static lib `mpcommon`, relay, tools, tests) so it builds and tests without game files. | Builder call |
 
 ## Ground rules
 
