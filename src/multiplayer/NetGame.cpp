@@ -10,6 +10,7 @@
 #include "RemotePlayer.h"
 #include "NetVehicles.h"
 #include "NetCombat.h"
+#include "NetChat.h"
 #include "GameProtocol.h"
 #include "Frontend.h"
 #include "Messages.h"
@@ -65,6 +66,8 @@ EndLocal(const char *statusKey)
 	CRemotePlayer::RemoveAll();
 	CNetVehicles::Clear();
 	CNetCombat::Reset();
+	CNetChat::Reset();
+	CNetChat::ReleaseWorld();
 	sWantWorld = false;
 	sInGame = false;
 	sPendingStart = false;
@@ -114,12 +117,21 @@ public:
 		if(sInGame){
 			CRemotePlayer::Add(id, sRoster[id].name);
 			CNetVehicles::OnPlayerJoined(id);
+			CNetChat::SendWorld();
+			char line[64];
+			snprintf(line, sizeof(line), "%s joined", sRoster[id].name);
+			CNetChat::AddLine(line, CNetChat::NOTICE);
 		}
 	}
 	void OnPlayerLeft(uint8 id) override
 	{
 		if(id >= MP_MAX_PLAYERS)
 			return;
+		if(sInGame && sRoster[id].used){
+			char line[64];
+			snprintf(line, sizeof(line), "%s left", sRoster[id].name);
+			CNetChat::AddLine(line, CNetChat::NOTICE);
+		}
 		sRoster[id].used = false;
 		if(sInGame)
 			CNetVehicles::RemoveAllOwnedBy(id);
@@ -135,8 +147,8 @@ public:
 	}
 	void OnChat(uint8 from, const char *text) override
 	{
-		(void)from;
-		(void)text;
+		if(sInGame)
+			CNetChat::OnChat(from, text);
 	}
 	void OnGameMessage(uint8 from, uint8 type, CByteReader &body) override
 	{
@@ -204,6 +216,12 @@ public:
 			SShot msg;
 			if(msg.Read(body))
 				CNetCombat::OnShot(from, msg);
+			break;
+		}
+		case GMSG_WORLD: {
+			SWorldState msg;
+			if(msg.Read(body))
+				CNetChat::OnWorld(from, msg);
 			break;
 		}
 		case GMSG_VEHICLE_EXIT: {
@@ -341,6 +359,7 @@ CNetGame::Process(void)
 		SendLocalState();
 	}
 	CNetVehicles::SendOwned(now);
+	CNetChat::UpdateWorld(now);
 }
 
 void
@@ -349,6 +368,13 @@ CNetGame::Render2d(void)
 	if(!IsActive())
 		return;
 	CRemotePlayer::RenderNameTags();
+	CNetChat::Render();
+}
+
+void
+CNetGame::AfterPadUpdate(void)
+{
+	CNetChat::Update();
 }
 
 void
@@ -539,6 +565,7 @@ CNetGame::OnWorldStarted(void)
 		player->SetHeading(heading);
 		CSpawnPoints::GiveLoadout(player);
 	}
+	CNetChat::SendWorld();
 }
 
 void

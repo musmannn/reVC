@@ -32,6 +32,8 @@ public:
 	// Simulation sync. Called only while the game isn't paused.
 	static void Process(void);
 	static void Render2d(void);
+	// Right after CPad::UpdatePads() in CGame::Process: chat input.
+	static void AfterPadUpdate(void);
 
 	// In a session with the multiplayer world running.
 	static bool IsActive(void);

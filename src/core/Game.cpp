@@ -871,6 +871,9 @@ void CGame::Process(void)
 	CNetGame::Service();
 #endif
 	CPad::UpdatePads();
+#ifdef MULTIPLAYER
+	CNetGame::AfterPadUpdate();
+#endif
 #ifdef USE_CUSTOM_ALLOCATOR
 	ProcessTidyUpMemory();
 #endif

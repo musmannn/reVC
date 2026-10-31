@@ -80,3 +80,13 @@ sudo tc qdisc add dev lo root netem delay 75ms
 - [ ] Dying in a car respawns you on foot; the car stays behind.
 - [ ] Both players die at the same time: both respawn normally.
 - [ ] Single player: dying still costs $100 and weapons, passes time, and takes you to hospital.
+
+## Plan 2, Task 8: chat, notices, time and weather
+
+- [ ] `T` opens chat; messages go both ways and show with coloured names, top left, for 10 s (all lines while typing).
+- [ ] While typing, `W`/`F`/arrow keys don't move or exit the car, and typing a cheat (e.g. `THUGSTOOLS`) does nothing.
+- [ ] `Esc` cancels chat without opening the pause menu; `Enter` on an empty line just closes it.
+- [ ] Pressing `Enter` to send doesn't also make you get out of the car.
+- [ ] "Lance joined" / "Lance left" notices appear.
+- [ ] The host changes the weather (debug menu) and the friend sees it within 10 s; game time matches within 2 minutes.
+- [ ] After leaving the session the weather goes back to normal.
