@@ -19,7 +19,7 @@ Keep it up to date as work lands.
 
 | Milestone | Scope | State |
 |---|---|---|
-| 1 | Invite-code sessions, free roam, races | **Plan 1 complete** (network layer, relay, fake client, CI on 3 OSes). **Plan 2 code complete, in-game unverified**: the game builds with `MULTIPLAYER` on Linux, macOS and Windows in CI; the checks in [testing.md](testing.md) wait for the game files. Next: Plan 3 (races). |
+| 1 | Invite-code sessions, free roam, races | **Code complete, in-game unverified.** Plan 1 is complete (network layer, relay, fake client). Plans 2 and 3 are written and build with `MULTIPLAYER` on Linux, macOS and Windows in CI. The engine-free race rules, route parser and race protocol are unit tested, and a whole race runs with fake clients. Still waiting on the game files: every check in [testing.md](testing.md), plus recording the 4 built-in race routes. |
 | 2 | Deathmatch, team deathmatch, scoreboards | Not started |
 | 3 | More modes, race editor, dedicated server | Not started |
 
@@ -64,6 +64,13 @@ revisited with a reason.
 | 2026-10-31 | Chat and free-roam menu disable player controls with new bits `0x200` and `0x400` (the engine uses up to `0x100`). Cheats are ignored while typing in chat or a menu field (`CPad::AddToPCCheatString`). | Builder call |
 | 2026-10-31 | Saving is blocked in a session (the save point shows "Saving is disabled in multiplayer"); loading a save leaves the session. | Builder call |
 | 2026-10-31 | `'~'` is dropped from names and chat: the game's font treats it as the start of a colour token. | Builder call |
+| 2026-10-31 | Racers advance to the next checkpoint locally the moment they cross it; the host's standings are the truth for positions and results. | Builder call |
+| 2026-10-31 | The host computes each racer's distance to their next checkpoint from the `PLAYER_STATE` positions it already gets, so racers don't send it. | Builder call |
+| 2026-10-31 | At race start every racer, passengers included, is warped out of their car into a fresh race car on the grid. | Builder call |
+| 2026-10-31 | Race routes are text `.route` files in `data/mp/races/`, listed in `data/mp/races/index.txt`: `CFileMgr` can't list a directory, so the index stands in for the plan's `*.route` glob. `/rec save` adds new routes to it. | Builder call |
+| 2026-10-31 | The host side of a race (invite, accepts, start, standings, end) is the engine-free `CRaceHost` in `mp/common`, shared by the game host and the fake client's `--start-race`, and unit tested. Late joiners get the open invite. | Builder call |
+| 2026-10-31 | Race checkpoint cylinders are drawn at the trigger radius (`C3dMarkers` size = radius, like the script's spheres), not twice it, so what you see is what counts. | Builder call |
+| 2026-10-31 | The race freeze uses its own player-control bit `0x800` instead of `PLAYERCONTROL_CUTSCENE`, so it can't fight cutscenes. | Builder call |
 | 2026-10-31 | Added `mp/common/NetInit.*` (ref-counted `enet_initialize`), which the relay and `CNetClient` share. This file isn't in the plan's file list. | Builder call |
 | 2026-10-31 | On `Stop()` the relay drains for 250 ms and then destroys the host without forcing disconnects. ENet discards a peer's undelivered packets when a disconnect arrives, which would swallow `SESSION_ENDED`. | Builder call |
 | 2026-10-31 | Received chat text and names are filtered to printable ASCII in `CNetClient` before they reach the game. | Builder call |
@@ -71,6 +78,30 @@ revisited with a reason.
 | 2026-10-31 | `vendor/enet` also keeps ENet's `README` and `ChangeLog`, and `vendor/doctest` keeps `LICENSE.txt`, next to the plan's files. All are unmodified copies of the tags. | Builder call |
 | 2026-10-31 | `CNetClient` detects a re-entrant `Host()`/`Join()` from inside a callback with a generation counter. Comparing `ENetHost` pointers failed on macOS, where malloc reuses the address. | Builder call |
 | 2026-10-31 | Relay hardening beyond the plan: ENet `maximumPacketSize` 2 KB and `maximumWaitingData` 64 KB (the defaults allow 32 MB per peer), at most 16 connections per IP (`SRelayConfig::maxPeersPerAddress`, an added field), and at most 4096 events per `Service()`. Known gap: a member that is slow to acknowledge can make the relay queue reliable traffic for it until its ENet timeout (≤ 15 s). | Builder call |
+
+## Race routes
+
+`.route` files live in `gamefiles/data/mp/races/` (copied into the game's
+`data/mp/races/`) and are listed in `index.txt` there. They're plain text with
+`#` comments and one directive per line:
+
+```
+name Ocean Drive Sprint
+type sprint            # or circuit
+laps 1                 # circuits: 1..9; sprints are always 1
+vehicle 141            # model id (141 = Infernus)
+grid  X Y Z HEADING    # 1..8 slots, in grid order; heading in degrees
+cp    X Y Z RADIUS     # 2..64 checkpoints in driving order; the last one is the finish
+```
+
+A bad file is skipped with a reason in the debug log, and the rest still load.
+Record routes in a session with the chat commands `/rec new NAME`,
+`/rec type sprint|circuit`, `/rec laps N`, `/rec vehicle`, `/rec grid`,
+`/rec cp [radius]`, `/rec undo` and `/rec save`. `/pos` prints your coordinates.
+
+To try a race without the game: start a relay, then
+`revc-fakeclient --relay 127.0.0.1 --host --start-race "Test"` and two
+`revc-fakeclient --relay 127.0.0.1 --join VICE-XXXX --bot race`.
 
 ## Ground rules
 
@@ -171,6 +202,7 @@ makes Lance print `[ended] host left` and exit non-zero.
 Track anything waiting on the owner here, and remove it once answered.
 
 - The default relay is `MP_DEFAULT_RELAY` = `127.0.0.1:7777` in `src/multiplayer/NetGame.h` until the cloud VPS exists. It's a one-line change.
+- The 4 built-in race routes (Ocean Drive Sprint, Starfish Loop, Bridge Run, Little Havana Circuit) aren't recorded yet. Record them in-game with `/rec` and list them in `gamefiles/data/mp/races/index.txt`.
 - Placeholders that need the game to check: the spawn points (`src/multiplayer/SpawnPoints.cpp`), the default remote-player skins (`sDefaultSkins` in `RemotePlayer.cpp`) and the fake client's `--bot drive` model (132).
 
 - GTA Vice City isn't installed on the dev machine yet. In-game testing waits
