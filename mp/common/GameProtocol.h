@@ -12,6 +12,7 @@
 #include "MpTypes.h"
 #include "ByteStream.h"
 #include "Protocol.h"
+#include "RaceRoute.h"
 
 enum eGameMsg : uint8_t
 {
@@ -28,7 +29,15 @@ enum eGameMsg : uint8_t
 	GMSG_SHOT = 74,			// unreliable, all-but-self
 	GMSG_WORLD = 75,		// reliable, host -> all
 
-	GMSG_RACE_FIRST = 80,		// 80..95 reserved for races (Plan 3)
+	GMSG_RACE_FIRST = 80,		// 80..95 races
+	GMSG_RACE_REQUEST = 80,		// -> host, reliable
+	GMSG_RACE_INVITE = 81,		// host -> all
+	GMSG_RACE_ACCEPT = 82,		// -> host
+	GMSG_RACE_START = 83,		// host -> all
+	GMSG_RACE_CROSS = 84,		// racer -> host, reliable
+	GMSG_RACE_STANDINGS = 85,	// host -> all, 4 Hz, unreliable
+	GMSG_RACE_END = 86,		// host -> all, reliable (final standings)
+	GMSG_RACE_CANCEL = 87,		// host -> all or one
 	GMSG_LAST = 95
 };
 
@@ -216,6 +225,100 @@ struct SWorldState
 	uint8_t weather;
 
 	SWorldState(void) : hour(12), minute(0), weather(0) {}
+	void Write(CByteWriter &w) const;
+	bool Read(CByteReader &r);
+};
+
+// ---- Races (Plan 3). raceId is a u16 the host increments per race; messages
+// with a stale raceId are ignored.
+
+enum eRaceCancelReason
+{
+	RACE_BUSY,		// a race is already pending or running
+	RACE_NO_RACERS,		// nobody accepted
+	RACE_BAD_ROUTE		// the host lacks that route file
+};
+
+struct SRaceRequest
+{
+	char route[MP_MAX_ROUTE_NAME + 1];
+
+	SRaceRequest(void) { route[0] = '\0'; }
+	void Write(CByteWriter &w) const;
+	bool Read(CByteReader &r);
+};
+
+struct SRaceInvite
+{
+	uint16_t raceId;
+	uint8_t startedBy;
+	char route[MP_MAX_ROUTE_NAME + 1];
+	uint32_t deadline;	// session time; accepts after it are ignored
+
+	SRaceInvite(void) : raceId(0), startedBy(MP_PLAYER_NONE), deadline(0) { route[0] = '\0'; }
+	void Write(CByteWriter &w) const;
+	bool Read(CByteReader &r);
+};
+
+struct SRaceAccept
+{
+	uint16_t raceId;
+
+	SRaceAccept(void) : raceId(0) {}
+	void Write(CByteWriter &w) const;
+	bool Read(CByteReader &r);
+};
+
+struct SRaceStart
+{
+	uint16_t raceId;
+	uint32_t startTime;	// session time of GO
+	uint8_t n;
+	uint8_t ids[MP_MAX_PLAYERS];	// index = grid slot
+
+	SRaceStart(void) : raceId(0), startTime(0), n(0) {}
+	void Write(CByteWriter &w) const;
+	bool Read(CByteReader &r);
+};
+
+struct SRaceCross
+{
+	uint16_t raceId;
+	uint16_t seq;
+	uint32_t time;		// session time of the crossing, racer's own clock
+
+	SRaceCross(void) : raceId(0), seq(0), time(0) {}
+	void Write(CByteWriter &w) const;
+	bool Read(CByteReader &r);
+};
+
+struct SRaceStandingEntry
+{
+	uint8_t id;
+	uint16_t nextSeq;
+	uint8_t state;		// eRacerState
+	uint32_t finishTime;	// ms from the start, when finished
+};
+
+// GMSG_RACE_STANDINGS, or GMSG_RACE_END with the same body.
+struct SRaceStandings
+{
+	uint8_t msgType;	// which of the two Write() sends
+	uint16_t raceId;
+	uint8_t n;
+	SRaceStandingEntry entries[MP_MAX_PLAYERS];	// standings order
+
+	SRaceStandings(void) : msgType(GMSG_RACE_STANDINGS), raceId(0), n(0) {}
+	void Write(CByteWriter &w) const;
+	bool Read(CByteReader &r);
+};
+
+struct SRaceCancel
+{
+	uint16_t raceId;
+	uint8_t reason;		// eRaceCancelReason
+
+	SRaceCancel(void) : raceId(0), reason(RACE_BUSY) {}
 	void Write(CByteWriter &w) const;
 	bool Read(CByteReader &r);
 };

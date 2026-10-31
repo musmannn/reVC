@@ -294,3 +294,115 @@ TEST_CASE("vehicle ownership transfer")
 		CHECK(MpNextVehicleOwner(0, seats, 2) == 0);
 	}
 }
+
+TEST_CASE("race messages round trip")
+{
+	SUBCASE("request")
+	{
+		SRaceRequest in, out;
+		strcpy(in.route, "Ocean Drive Sprint");
+		REQUIRE(RoundTrip(in, GMSG_RACE_REQUEST, out));
+		CHECK(strcmp(out.route, "Ocean Drive Sprint") == 0);
+		CheckAllPrefixesFail(in);
+	}
+	SUBCASE("invite")
+	{
+		SRaceInvite in, out;
+		in.raceId = 7;
+		in.startedBy = 3;
+		strcpy(in.route, "Starfish Loop");
+		in.deadline = 0xABCDEF01;
+		REQUIRE(RoundTrip(in, GMSG_RACE_INVITE, out));
+		CHECK(out.raceId == 7);
+		CHECK(out.startedBy == 3);
+		CHECK(strcmp(out.route, "Starfish Loop") == 0);
+		CHECK(out.deadline == 0xABCDEF01);
+		CheckAllPrefixesFail(in);
+	}
+	SUBCASE("accept")
+	{
+		SRaceAccept in, out;
+		in.raceId = 9;
+		REQUIRE(RoundTrip(in, GMSG_RACE_ACCEPT, out));
+		CHECK(out.raceId == 9);
+	}
+	SUBCASE("start")
+	{
+		SRaceStart in, out;
+		in.raceId = 2;
+		in.startTime = 123456;
+		in.n = 3;
+		in.ids[0] = 4;
+		in.ids[1] = 0;
+		in.ids[2] = 7;
+		REQUIRE(RoundTrip(in, GMSG_RACE_START, out));
+		CHECK(out.raceId == 2);
+		CHECK(out.startTime == 123456);
+		REQUIRE(out.n == 3);
+		CHECK(out.ids[0] == 4);
+		CHECK(out.ids[2] == 7);
+		CheckAllPrefixesFail(in);
+	}
+	SUBCASE("cross")
+	{
+		SRaceCross in, out;
+		in.raceId = 2;
+		in.seq = 17;
+		in.time = 99999;
+		REQUIRE(RoundTrip(in, GMSG_RACE_CROSS, out));
+		CHECK(out.raceId == 2);
+		CHECK(out.seq == 17);
+		CHECK(out.time == 99999);
+	}
+	SUBCASE("standings and end, 8 racers")
+	{
+		SRaceStandings in, out;
+		in.raceId = 5;
+		in.n = MP_MAX_PLAYERS;
+		for(uint8_t i = 0; i < MP_MAX_PLAYERS; i++){
+			in.entries[i].id = (uint8_t)(7 - i);
+			in.entries[i].nextSeq = (uint16_t)(100 + i);
+			in.entries[i].state = (uint8_t)(i % 3);
+			in.entries[i].finishTime = 60000u + i;
+		}
+		uint32_t size = 0;
+		REQUIRE(RoundTrip(in, GMSG_RACE_STANDINGS, out, &size));
+		CHECK(size <= 100);
+		CHECK(out.raceId == 5);
+		REQUIRE(out.n == MP_MAX_PLAYERS);
+		CHECK(out.entries[0].id == 7);
+		CHECK(out.entries[7].nextSeq == 107);
+		CHECK(out.entries[5].state == 2);
+		CHECK(out.entries[3].finishTime == 60003u);
+		CheckAllPrefixesFail(in);
+
+		in.msgType = GMSG_RACE_END;
+		SRaceStandings end;
+		REQUIRE(RoundTrip(in, GMSG_RACE_END, end));
+		CHECK(end.n == MP_MAX_PLAYERS);
+	}
+	SUBCASE("cancel")
+	{
+		SRaceCancel in, out;
+		in.raceId = 3;
+		in.reason = RACE_BAD_ROUTE;
+		REQUIRE(RoundTrip(in, GMSG_RACE_CANCEL, out));
+		CHECK(out.raceId == 3);
+		CHECK(out.reason == RACE_BAD_ROUTE);
+	}
+	SUBCASE("too many racers rejected")
+	{
+		CByteWriter w;
+		w.WriteU8(GMSG_RACE_START);
+		w.WriteU16(1);
+		w.WriteU32(1);
+		w.WriteU8(MP_MAX_PLAYERS + 1);
+		for(uint32_t i = 0; i < MP_MAX_PLAYERS + 1; i++)
+			w.WriteU8((uint8_t)i);
+		CByteReader r(w.Data(), w.Size());
+		uint8_t type;
+		REQUIRE(r.ReadU8(type));
+		SRaceStart out;
+		CHECK(!out.Read(r));
+	}
+}

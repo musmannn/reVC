@@ -258,3 +258,120 @@ MpNextVehicleOwner(uint8_t currentOwner, const uint8_t seats[MP_MAX_SEATS], uint
 			return seats[i];
 	return MP_PLAYER_NONE;
 }
+
+void
+SRaceRequest::Write(CByteWriter &w) const
+{
+	w.WriteU8(GMSG_RACE_REQUEST);
+	w.WriteString(route, MP_MAX_ROUTE_NAME);
+}
+
+bool
+SRaceRequest::Read(CByteReader &r)
+{
+	return r.ReadString(route, sizeof(route));
+}
+
+void
+SRaceInvite::Write(CByteWriter &w) const
+{
+	w.WriteU8(GMSG_RACE_INVITE);
+	w.WriteU16(raceId);
+	w.WriteU8(startedBy);
+	w.WriteString(route, MP_MAX_ROUTE_NAME);
+	w.WriteU32(deadline);
+}
+
+bool
+SRaceInvite::Read(CByteReader &r)
+{
+	return r.ReadU16(raceId) && r.ReadU8(startedBy) && r.ReadString(route, sizeof(route)) && r.ReadU32(deadline);
+}
+
+void
+SRaceAccept::Write(CByteWriter &w) const
+{
+	w.WriteU8(GMSG_RACE_ACCEPT);
+	w.WriteU16(raceId);
+}
+
+bool
+SRaceAccept::Read(CByteReader &r)
+{
+	return r.ReadU16(raceId);
+}
+
+void
+SRaceStart::Write(CByteWriter &w) const
+{
+	w.WriteU8(GMSG_RACE_START);
+	w.WriteU16(raceId);
+	w.WriteU32(startTime);
+	uint8_t count = n > MP_MAX_PLAYERS ? (uint8_t)MP_MAX_PLAYERS : n;
+	w.WriteU8(count);
+	w.WriteBytes(ids, count);
+}
+
+bool
+SRaceStart::Read(CByteReader &r)
+{
+	if(!r.ReadU16(raceId) || !r.ReadU32(startTime) || !r.ReadU8(n) || n > MP_MAX_PLAYERS)
+		return false;
+	return r.ReadBytes(ids, n);
+}
+
+void
+SRaceCross::Write(CByteWriter &w) const
+{
+	w.WriteU8(GMSG_RACE_CROSS);
+	w.WriteU16(raceId);
+	w.WriteU16(seq);
+	w.WriteU32(time);
+}
+
+bool
+SRaceCross::Read(CByteReader &r)
+{
+	return r.ReadU16(raceId) && r.ReadU16(seq) && r.ReadU32(time);
+}
+
+void
+SRaceStandings::Write(CByteWriter &w) const
+{
+	w.WriteU8(msgType);
+	w.WriteU16(raceId);
+	uint8_t count = n > MP_MAX_PLAYERS ? (uint8_t)MP_MAX_PLAYERS : n;
+	w.WriteU8(count);
+	for(uint8_t i = 0; i < count; i++){
+		w.WriteU8(entries[i].id);
+		w.WriteU16(entries[i].nextSeq);
+		w.WriteU8(entries[i].state);
+		w.WriteU32(entries[i].finishTime);
+	}
+}
+
+bool
+SRaceStandings::Read(CByteReader &r)
+{
+	if(!r.ReadU16(raceId) || !r.ReadU8(n) || n > MP_MAX_PLAYERS)
+		return false;
+	for(uint8_t i = 0; i < n; i++)
+		if(!r.ReadU8(entries[i].id) || !r.ReadU16(entries[i].nextSeq) ||
+		   !r.ReadU8(entries[i].state) || !r.ReadU32(entries[i].finishTime))
+			return false;
+	return true;
+}
+
+void
+SRaceCancel::Write(CByteWriter &w) const
+{
+	w.WriteU8(GMSG_RACE_CANCEL);
+	w.WriteU16(raceId);
+	w.WriteU8(reason);
+}
+
+bool
+SRaceCancel::Read(CByteReader &r)
+{
+	return r.ReadU16(raceId) && r.ReadU8(reason);
+}
