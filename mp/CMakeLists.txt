@@ -79,6 +79,7 @@ add_library(mpcommon STATIC
 	common/SessionClock.cpp
 	common/PoseBuffer.cpp
 	common/NetInit.cpp
+	common/NetClient.cpp
 )
 target_include_directories(mpcommon PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/common)
 target_link_libraries(mpcommon PUBLIC enet)
@@ -109,8 +110,10 @@ add_executable(mp_tests
 	tests/test_invitecode.cpp
 	tests/test_sessionclock.cpp
 	tests/test_posebuffer.cpp
+	tests/test_relay_integration.cpp
 )
 target_include_directories(mp_tests PRIVATE ${MP_VENDOR_DIR}/doctest)
-target_link_libraries(mp_tests PRIVATE mpcommon)
+find_package(Threads REQUIRED)
+target_link_libraries(mp_tests PRIVATE relaycore mpcommon Threads::Threads)
 mp_target_settings(mp_tests)
 add_test(NAME mp_tests COMMAND mp_tests)

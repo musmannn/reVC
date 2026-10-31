@@ -185,11 +185,11 @@ CRelayServer::Stop(void)
 			if(r > 0 && ev.type == ENET_EVENT_TYPE_RECEIVE)
 				enet_packet_destroy(ev.packet);
 		}
-		for(size_t i = 0; i < m_host->peerCount; i++){
-			ENetPeer *peer = &m_host->peers[i];
-			if(peer->state != ENET_PEER_STATE_DISCONNECTED)
-				enet_peer_disconnect_now(peer, 0);
-		}
+		// Peers that acknowledged in time were disconnected gracefully above.
+		// Don't force a disconnect on the rest: ENet drops a peer's
+		// undelivered packets when a disconnect arrives, which would eat the
+		// SESSION_ENDED that is already on the wire. They leave on receiving
+		// it, or time out if it was lost.
 		enet_host_destroy(m_host);
 		m_host = nullptr;
 		m_peers.clear();
