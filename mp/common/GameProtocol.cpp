@@ -375,3 +375,121 @@ SRaceCancel::Read(CByteReader &r)
 {
 	return r.ReadU16(raceId) && r.ReadU8(reason);
 }
+
+void
+SMatchRequest::Write(CByteWriter &w) const
+{
+	w.WriteU8(GMSG_MATCH_REQUEST);
+	w.WriteU8(mode);
+}
+
+bool
+SMatchRequest::Read(CByteReader &r)
+{
+	return r.ReadU8(mode);
+}
+
+void
+SMatchInvite::Write(CByteWriter &w) const
+{
+	w.WriteU8(GMSG_MATCH_INVITE);
+	w.WriteU16(matchId);
+	w.WriteU8(mode);
+	w.WriteU8(startedBy);
+	w.WriteU16(scoreLimit);
+	w.WriteU32(timeLimitMs);
+	w.WriteU32(deadline);
+}
+
+bool
+SMatchInvite::Read(CByteReader &r)
+{
+	return r.ReadU16(matchId) && r.ReadU8(mode) && r.ReadU8(startedBy) && r.ReadU16(scoreLimit) &&
+		r.ReadU32(timeLimitMs) && r.ReadU32(deadline);
+}
+
+void
+SMatchAccept::Write(CByteWriter &w) const
+{
+	w.WriteU8(GMSG_MATCH_ACCEPT);
+	w.WriteU16(matchId);
+}
+
+bool
+SMatchAccept::Read(CByteReader &r)
+{
+	return r.ReadU16(matchId);
+}
+
+void
+SMatchStart::Write(CByteWriter &w) const
+{
+	w.WriteU8(GMSG_MATCH_START);
+	w.WriteU16(matchId);
+	w.WriteU8(mode);
+	w.WriteU16(scoreLimit);
+	w.WriteU32(timeLimitMs);
+	w.WriteU32(startTime);
+	uint8_t count = n > MP_MAX_PLAYERS ? (uint8_t)MP_MAX_PLAYERS : n;
+	w.WriteU8(count);
+	for(uint8_t i = 0; i < count; i++){
+		w.WriteU8(ids[i]);
+		w.WriteU8(teams[i]);
+	}
+}
+
+bool
+SMatchStart::Read(CByteReader &r)
+{
+	if(!r.ReadU16(matchId) || !r.ReadU8(mode) || !r.ReadU16(scoreLimit) || !r.ReadU32(timeLimitMs) ||
+	   !r.ReadU32(startTime) || !r.ReadU8(n) || n > MP_MAX_PLAYERS)
+		return false;
+	for(uint8_t i = 0; i < n; i++)
+		if(!r.ReadU8(ids[i]) || !r.ReadU8(teams[i]))
+			return false;
+	return true;
+}
+
+void
+SMatchScores::Write(CByteWriter &w) const
+{
+	w.WriteU8(msgType);
+	w.WriteU16(matchId);
+	w.WriteI16(teamScore[0]);
+	w.WriteI16(teamScore[1]);
+	uint8_t count = n > MP_MAX_PLAYERS ? (uint8_t)MP_MAX_PLAYERS : n;
+	w.WriteU8(count);
+	for(uint8_t i = 0; i < count; i++){
+		w.WriteU8(entries[i].id);
+		w.WriteU8(entries[i].team);
+		w.WriteI16(entries[i].score);
+		w.WriteU16(entries[i].kills);
+		w.WriteU16(entries[i].deaths);
+	}
+}
+
+bool
+SMatchScores::Read(CByteReader &r)
+{
+	if(!r.ReadU16(matchId) || !r.ReadI16(teamScore[0]) || !r.ReadI16(teamScore[1]) || !r.ReadU8(n) || n > MP_MAX_PLAYERS)
+		return false;
+	for(uint8_t i = 0; i < n; i++)
+		if(!r.ReadU8(entries[i].id) || !r.ReadU8(entries[i].team) || !r.ReadI16(entries[i].score) ||
+		   !r.ReadU16(entries[i].kills) || !r.ReadU16(entries[i].deaths))
+			return false;
+	return true;
+}
+
+void
+SMatchCancel::Write(CByteWriter &w) const
+{
+	w.WriteU8(GMSG_MATCH_CANCEL);
+	w.WriteU16(matchId);
+	w.WriteU8(reason);
+}
+
+bool
+SMatchCancel::Read(CByteReader &r)
+{
+	return r.ReadU16(matchId) && r.ReadU8(reason);
+}

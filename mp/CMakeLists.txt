@@ -84,6 +84,7 @@ add_library(mpcommon STATIC
 	common/RaceRoute.cpp
 	common/RaceLogic.cpp
 	common/RaceHost.cpp
+	common/MatchLogic.cpp
 )
 target_include_directories(mpcommon PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/common)
 target_link_libraries(mpcommon PUBLIC enet)
@@ -127,6 +128,7 @@ add_executable(mp_tests
 	tests/test_raceroute.cpp
 	tests/test_racelogic.cpp
 	tests/test_racehost.cpp
+	tests/test_matchlogic.cpp
 )
 target_include_directories(mp_tests PRIVATE ${MP_VENDOR_DIR}/doctest)
 target_link_libraries(mp_tests PRIVATE relaycore mpcommon Threads::Threads)

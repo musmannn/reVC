@@ -33,7 +33,7 @@ invites, spawns, friendly fire, the HUD and the scoreboard.
 - `GMSG_MATCH_REQUEST = 88` (→ host): `u8 mode`.
 - `GMSG_MATCH_INVITE = 89` (host → all): `u16 matchId; u8 mode; u8 startedBy; u16 scoreLimit; u32 timeLimitMs; u32 deadline`.
 - `GMSG_MATCH_ACCEPT = 90` (→ host): `u16 matchId`.
-- `GMSG_MATCH_START = 91` (host → all): `u16 matchId; u32 startTime; u8 n; {u8 id; u8 team}[n]`.
+- `GMSG_MATCH_START = 91` (host → all): `u16 matchId; u8 mode; u16 scoreLimit; u32 timeLimitMs; u32 startTime; u8 n; {u8 id; u8 team}[n]` (mode and limits repeated from the invite, so START stands alone).
 - `GMSG_MATCH_SCORES = 92` (host → all, 2 Hz, unreliable) and `GMSG_MATCH_END = 93` (reliable, final): `u16 matchId; u16 teamScore[2]; u8 n; {u8 id; u8 team; i16 score; u16 kills; u16 deaths}[n]` in standings order.
 - `GMSG_MATCH_CANCEL = 94`: `u16 matchId; u8 reason` (`MATCH_BUSY`, `MATCH_NOT_ENOUGH`, `MATCH_ABORTED`).
 
