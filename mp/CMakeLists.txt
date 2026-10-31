@@ -78,6 +78,7 @@ add_library(mpcommon STATIC
 	common/InviteCode.cpp
 	common/SessionClock.cpp
 	common/PoseBuffer.cpp
+	common/NetInit.cpp
 )
 target_include_directories(mpcommon PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/common)
 target_link_libraries(mpcommon PUBLIC enet)
@@ -85,6 +86,20 @@ if(WIN32)
 	target_link_libraries(mpcommon PUBLIC ws2_32 winmm)
 endif()
 mp_target_settings(mpcommon)
+
+# --- Relay ------------------------------------------------------------------
+add_library(relaycore STATIC
+	relay/RelayServer.cpp
+)
+target_include_directories(relaycore PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/relay)
+target_link_libraries(relaycore PUBLIC mpcommon)
+mp_target_settings(relaycore)
+
+add_executable(revc-relay
+	relay/main.cpp
+)
+target_link_libraries(revc-relay PRIVATE relaycore)
+mp_target_settings(revc-relay)
 
 # --- Tests --------------------------------------------------------------------
 add_executable(mp_tests
