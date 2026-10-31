@@ -82,7 +82,7 @@ revisited with a reason.
 | 2026-10-31 | `REVC_MULTIPLAYER` defaults to OFF on Switch, PS2 and Android (they're out of scope, and the Switch CI builds the top-level CMake). It defaults to ON elsewhere, as the plan says. | Builder call |
 | 2026-10-31 | `vendor/enet` also keeps ENet's `README` and `ChangeLog`, and `vendor/doctest` keeps `LICENSE.txt`, next to the plan's files. All are unmodified copies of the tags. | Builder call |
 | 2026-10-31 | `CNetClient` detects a re-entrant `Host()`/`Join()` from inside a callback with a generation counter. Comparing `ENetHost` pointers failed on macOS, where malloc reuses the address. | Builder call |
-| 2026-10-31 | Relay hardening beyond the plan: ENet `maximumPacketSize` 2 KB and `maximumWaitingData` 64 KB (the defaults allow 32 MB per peer), at most 16 connections per IP (`SRelayConfig::maxPeersPerAddress`, an added field), and at most 4096 events per `Service()`. Known gap: a member that is slow to acknowledge can make the relay queue reliable traffic for it until its ENet timeout (≤ 15 s). | Builder call |
+| 2026-10-31 | Relay hardening beyond the plan: ENet `maximumPacketSize` 2 KB and `maximumWaitingData` 64 KB (the defaults allow 32 MB per peer), at most 16 connections per IP (`SRelayConfig::maxPeersPerAddress`, an added field), and at most 4096 events per `Service()`. A member that stops acknowledging skips snapshots once half of `maxQueuedPerPeer` (2048) reliable commands are queued for it, and is dropped past the limit. Each IP gets 10 joins with an unknown code per minute (`maxFailedJoinsPerMinute`), so invite codes can't be guessed. | Builder call |
 
 ## Race routes
 

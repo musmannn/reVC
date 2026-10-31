@@ -161,10 +161,14 @@ public:
 	std::vector<CRawPeer*> raws;
 	uint16_t port = 0;
 
-	explicit CHarness(uint32_t maxPacketsPerSecond = 200)
+	explicit CHarness(uint32_t maxPacketsPerSecond = 200, uint32_t maxQueuedPerPeer = 0, uint32_t maxFailedJoins = 0)
 	{
 		SRelayConfig config;
 		config.maxPacketsPerSecond = maxPacketsPerSecond;
+		if(maxQueuedPerPeer)
+			config.maxQueuedPerPeer = maxQueuedPerPeer;
+		if(maxFailedJoins)
+			config.maxFailedJoinsPerMinute = maxFailedJoins;
 		config.bindAddress = "127.0.0.1";
 		for(uint16_t p = 27700; p < 27800; p++){
 			config.port = p;
@@ -692,4 +696,36 @@ TEST_CASE("relay: oversized first packet closes the connection")
 	std::vector<uint8_t> big(1500, 0);
 	raw.Send(big.data(), big.size());
 	CHECK(h.Pump([&](){ return raw.disconnected; }));
+}
+
+TEST_CASE("relay: a peer that stops acknowledging is dropped before its queue grows")
+{
+	CHarness h(1000, 64);
+	SNode &host = h.HostNode();
+	CRawPeer raw;
+	h.RawJoin(raw, host.rec.code, "Stuck");
+	REQUIRE(raw.JoinResult() == JOIN_OK);
+	REQUIRE(h.Pump([&](){ return host.rec.joined.size() == 1; }));
+	uint8_t stuckId = host.rec.joined[0].id;
+	// From now on the raw peer is never serviced, so it never acks.
+	h.raws.clear();
+	for(int i = 0; i < 400; i++)
+		SendGameMsg(host.client, MP_ROUTE_ALL_BUT_SELF, 0, 64, true);
+	REQUIRE(h.Pump([&](){ return host.rec.HasLeft(stuckId); }, 4000));
+	CHECK(host.client.IsInSession());
+	CHECK(h.relay.NumSessions() == 1);
+}
+
+TEST_CASE("relay: failed joins are rate limited per address")
+{
+	CHarness h(200, 0, 3);
+	SNode &host = h.HostNode();
+	for(int i = 0; i < 3; i++){
+		SNode &bad = h.JoinNode("VICE-ZZZZ", "Guess");
+		CHECK(bad.rec.joinFailed == JOIN_NOT_FOUND);
+	}
+	// Over the limit: even the right code is refused for now.
+	SNode &right = h.JoinNode(host.rec.code, "Lance");
+	CHECK(right.rec.joinFailed == JOIN_NOT_FOUND);
+	CHECK(!right.rec.ready);
 }
