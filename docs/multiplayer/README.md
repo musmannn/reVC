@@ -19,7 +19,7 @@ Keep it up to date as work lands.
 
 | Milestone | Scope | State |
 |---|---|---|
-| 1 | Invite-code sessions, free roam, races | Plan 1 Tasks 1–7 done (protocol, invite codes, clock, pose buffer, relay, net client, fake client, 51 tests). Next: Plan 1 Task 8 (CI) |
+| 1 | Invite-code sessions, free roam, races | **Plan 1 complete**: protocol, invite codes, session clock, pose buffer, relay, net client, fake client, 53 test cases, CI green on macOS/Linux/Windows. Next: Plan 2 (free roam) |
 | 2 | Deathmatch, team deathmatch, scoreboards | Not started |
 | 3 | More modes, race editor, dedicated server | Not started |
 
@@ -55,6 +55,9 @@ revisited with a reason.
 | 2026-10-31 | Added `mp/common/NetInit.*` (ref-counted `enet_initialize`), which the relay and `CNetClient` share. This file isn't in the plan's file list. | Builder call |
 | 2026-10-31 | On `Stop()` the relay drains for 250 ms and then destroys the host without forcing disconnects. ENet discards a peer's undelivered packets when a disconnect arrives, which would swallow `SESSION_ENDED`. | Builder call |
 | 2026-10-31 | Received chat text and names are filtered to printable ASCII in `CNetClient` before they reach the game. | Builder call |
+| 2026-10-31 | `REVC_MULTIPLAYER` defaults to OFF on Switch, PS2 and Android (they're out of scope, and the Switch CI builds the top-level CMake). It defaults to ON elsewhere, as the plan says. | Builder call |
+| 2026-10-31 | `vendor/enet` also keeps ENet's `README` and `ChangeLog`, and `vendor/doctest` keeps `LICENSE.txt`, next to the plan's files. All are unmodified copies of the tags. | Builder call |
+| 2026-10-31 | `CNetClient` detects a re-entrant `Host()`/`Join()` from inside a callback with a generation counter. Comparing `ENetHost` pointers failed on macOS, where malloc reuses the address. | Builder call |
 | 2026-10-31 | Relay hardening beyond the plan: ENet `maximumPacketSize` 2 KB and `maximumWaitingData` 64 KB (the defaults allow 32 MB per peer), at most 16 connections per IP (`SRelayConfig::maxPeersPerAddress`, an added field), and at most 4096 events per `Service()`. Known gap: a member that is slow to acknowledge can make the relay queue reliable traffic for it until its ENet timeout (≤ 15 s). | Builder call |
 
 ## Ground rules
