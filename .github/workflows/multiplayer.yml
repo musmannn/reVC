@@ -6,12 +6,18 @@ on:
       - 'mp/**'
       - 'vendor/enet/**'
       - 'vendor/doctest/**'
+      - 'src/**'
+      - 'CMakeLists.txt'
+      - 'premake5.lua'
       - '.github/workflows/multiplayer.yml'
   pull_request:
     paths:
       - 'mp/**'
       - 'vendor/enet/**'
       - 'vendor/doctest/**'
+      - 'src/**'
+      - 'CMakeLists.txt'
+      - 'premake5.lua'
       - '.github/workflows/multiplayer.yml'
   workflow_dispatch:
 
@@ -44,3 +50,56 @@ jobs:
             build-mp/revc-fakeclient
             build-mp/Release/revc-relay.exe
             build-mp/Release/revc-fakeclient.exe
+
+  # The game itself, with MULTIPLAYER on. No game assets are needed to build.
+  game-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libglfw3-dev libopenal-dev libmpg123-dev libgl-dev libx11-dev libsndfile1-dev
+      - name: Configure
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DREVC_VENDORED_LIBRW=ON -DLIBRW_PLATFORM=GL3 -DLIBRW_GL3_GFXLIB=GLFW -DREVC_AUDIO=OAL
+      - name: Build
+        run: cmake --build build --parallel
+
+  game-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Install dependencies
+        run: brew install glfw openal-soft mpg123
+      - name: Configure
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DREVC_VENDORED_LIBRW=ON -DLIBRW_PLATFORM=GL3 -DLIBRW_GL3_GFXLIB=GLFW -DREVC_AUDIO=OAL
+      - name: Build
+        run: cmake --build build --parallel
+
+  game-windows:
+    runs-on: windows-latest
+    env:
+      GLFW_BASE: "glfw-3.3.2.bin.WIN64"
+      GLFW_URL: "https://github.com/glfw/glfw/releases/download/3.3.2/glfw-3.3.2.bin.WIN64.zip"
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [win-amd64-librw_gl3_glfw-oal, win-amd64-librw_d3d9-oal]
+    steps:
+      - uses: microsoft/setup-msbuild@v2
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Download glfw
+        shell: pwsh
+        run: |
+          Invoke-WebRequest -Uri $env:GLFW_URL -OutFile glfw.zip
+          7z x glfw.zip
+      - name: Configure
+        run: ./premake5 vs2019 --with-librw --no-full-paths --glfwdir64=${{ env.GLFW_BASE }}
+      - name: Build
+        run: msbuild -m build/reVC.sln /property:Configuration=Release /property:Platform=${{ matrix.platform }}

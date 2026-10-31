@@ -32,6 +32,13 @@ target_link_libraries(${EXECUTABLE} PRIVATE
     Threads::Threads
 )
 
+# Multiplayer: mp/ is added by the top-level CMakeLists.txt (REVC_MULTIPLAYER).
+if(TARGET mpcommon)
+    target_link_libraries(${EXECUTABLE} PRIVATE mpcommon)
+else()
+    target_compile_definitions(${EXECUTABLE} PRIVATE NO_MULTIPLAYER)
+endif()
+
 if(ANDROID)
     target_link_libraries(${EXECUTABLE} PRIVATE
             log
