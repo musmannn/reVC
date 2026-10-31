@@ -13,13 +13,13 @@ Keep it up to date as work lands.
 | [Plan 2: free roam](../superpowers/plans/2026-10-31-mp-2-free-roam.md) | Game integration: menu, remote players, vehicles, combat, chat, free-roam menu. Compiles in CI; in-game checks need the game files. |
 | [Plan 3: races](../superpowers/plans/2026-10-31-mp-3-races.md) | Race rules (unit tested), race protocol, in-game race flow, route recorder, 4 routes. |
 | [Relay setup](relay-setup.md) | Running `revc-relay` on a cloud VPS or a home PC. |
-| `docs/multiplayer/testing.md` | In-game manual test checklist (created in Plan 2). |
+| [Testing checklist](testing.md) | In-game manual test checklist, to run once the game is installed. |
 
 ## Status
 
 | Milestone | Scope | State |
 |---|---|---|
-| 1 | Invite-code sessions, free roam, races | **Plan 1 complete**: protocol, invite codes, session clock, pose buffer, relay, net client, fake client, 53 test cases, CI green on macOS/Linux/Windows. Next: Plan 2 (free roam) |
+| 1 | Invite-code sessions, free roam, races | **Plan 1 complete** (network layer, relay, fake client, CI on 3 OSes). **Plan 2 code complete, in-game unverified**: the game builds with `MULTIPLAYER` on Linux, macOS and Windows in CI; the checks in [testing.md](testing.md) wait for the game files. Next: Plan 3 (races). |
 | 2 | Deathmatch, team deathmatch, scoreboards | Not started |
 | 3 | More modes, race editor, dedicated server | Not started |
 
@@ -52,6 +52,18 @@ revisited with a reason.
 | 2026-10-31 | Duplicate names are compared case-insensitively. The base name is shortened so `name (n)` fits in 23 chars. | Builder call |
 | 2026-10-31 | Ping/pong are unreliable. `CSessionClock` ignores samples with a negative RTT or one above 10 s, and `RttMs()` is the latest sample's RTT. | Builder call |
 | 2026-10-31 | The relay drops connections that don't send create/join within 10 s. The ENet peer timeout is 5–15 s, so a crashed host ends its session within 15 s. | Builder call |
+| 2026-10-31 | `MULTIPLAYER` also needs `CUSTOM_FRONTEND_OPTIONS` (the menu page is a CFO page), and the build defines `NO_MULTIPLAYER` when `mp/` isn't part of it, so `REVC_MULTIPLAYER=OFF` builds plain single player. | Builder call |
+| 2026-10-31 | Multiplayer menu text keys are at most 7 characters (`CMenuEntry::m_EntryName` is `char[8]`): `MP_RLAY` and `MP_LEAV` instead of the plan's `MP_RELAY`/`MP_LEAVE`, plus `MP_STAT` for the session row. | Builder call |
+| 2026-10-31 | A session becoming ready starts the world through `DoSettingsBeforeStartingAGame` (the New Game path). When it ends, the frontend opens; the offline world stays loaded instead of a forced return to the start menu (VC has no in-game "quit to main menu"). | Builder call |
+| 2026-10-31 | The network keeps servicing from `LoadingScreen` too, so long loads don't time the connection out; UI reactions wait for the next frame. | Builder call |
+| 2026-10-31 | Remote players' seats follow their `PLAYER_STATE` (vehicle id + seat), so seating heals after lost messages and works for late joiners; `VEHICLE_SEAT` only carries the host's accept/reject and ownership changes. | Builder call |
+| 2026-10-31 | The VC player can't normally get in as a passenger. Pressing enter at a car a friend is in warps you into a free passenger seat (`CPed::SetCarJack` hook), never dragging them out. | Builder call |
+| 2026-10-31 | When a vehicle owner leaves, ownership only changes if the leaver owned it (`MpNextVehicleOwner`); a passenger leaving never takes the car away from its owner. | Builder call |
+| 2026-10-31 | Remote shots draw a tracer along the shooter's camera direction (`CNetCombat::OnLocalShot`), for instant-hit weapons only; projectiles show through their anims. | Builder call |
+| 2026-10-31 | The multiplayer respawn is its own branch in `CGameLogic::Update` (no money/weapon loss, no `PassTime`, no taxi) instead of `CRestart::OverrideNextRestart`; `CNetCombat::SetRespawnOverride` lets races respawn at the last checkpoint. | Builder call |
+| 2026-10-31 | Chat and free-roam menu disable player controls with new bits `0x200` and `0x400` (the engine uses up to `0x100`). Cheats are ignored while typing in chat or a menu field (`CPad::AddToPCCheatString`). | Builder call |
+| 2026-10-31 | Saving is blocked in a session (the save point shows "Saving is disabled in multiplayer"); loading a save leaves the session. | Builder call |
+| 2026-10-31 | `'~'` is dropped from names and chat: the game's font treats it as the start of a colour token. | Builder call |
 | 2026-10-31 | Added `mp/common/NetInit.*` (ref-counted `enet_initialize`), which the relay and `CNetClient` share. This file isn't in the plan's file list. | Builder call |
 | 2026-10-31 | On `Stop()` the relay drains for 250 ms and then destroys the host without forcing disconnects. ENet discards a peer's undelivered packets when a disconnect arrives, which would swallow `SESSION_ENDED`. | Builder call |
 | 2026-10-31 | Received chat text and names are filtered to printable ASCII in `CNetClient` before they reach the game. | Builder call |
@@ -96,6 +108,8 @@ Where the engine touches what multiplayer needs.
 | Checkpoint markers | `C3dMarkers` (`src/renderer/SpecialFX.h`), `CCoronas` (`src/renderer/Coronas.h`) |
 | Time & weather | `CClock` (`src/core/Clock.h`), `CWeather` (`src/renderer/Weather.h`) |
 | Feature toggles | `src/core/config.h` |
+| **Multiplayer game code** | `src/multiplayer/`: `CNetGame` (session, dispatch), `CRemotePlayer`, `CNetVehicles`, `CNetCombat`, `CNetChat`, `CFreeroamMenu`, `MpMenu` (frontend page), `MpText`, `CSpawnPoints` |
+| Multiplayer engine hooks | `CGame::Process/Initialise/ReInitGameObjectVariables/ShutDown*` (`Game.cpp`), `FrontendIdle`/`LoadingScreen`/`Render2dStuff` (`main.cpp`), `CTheScripts::Init/OpenScript` (`Script.cpp`), `CText::Get`, `CMenuManager::Process` + save menu (`Frontend.cpp`), `CPed::InflictDamage`, `CPed::SetCarJack`, `CWeapon::Fire`, `CGameLogic::Update` (WASTED), `CPad::AddToPCCheatString`, INI load/save (`re3.cpp`). All inside `#ifdef MULTIPLAYER`. |
 
 ## Building
 
@@ -155,6 +169,9 @@ makes Lance print `[ended] host left` and exit non-zero.
 ## Open questions
 
 Track anything waiting on the owner here, and remove it once answered.
+
+- The default relay is `MP_DEFAULT_RELAY` = `127.0.0.1:7777` in `src/multiplayer/NetGame.h` until the cloud VPS exists. It's a one-line change.
+- Placeholders that need the game to check: the spawn points (`src/multiplayer/SpawnPoints.cpp`), the default remote-player skins (`sDefaultSkins` in `RemotePlayer.cpp`) and the fake client's `--bot drive` model (132).
 
 - GTA Vice City isn't installed on the dev machine yet. In-game testing waits
   for it. Until then, verify with unit tests and the headless fake client.
