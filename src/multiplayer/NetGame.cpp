@@ -5,9 +5,12 @@
 #include "NetGame.h"
 #include "MpText.h"
 #include "SpawnPoints.h"
+#include "RemotePlayer.h"
+#include "GameProtocol.h"
 #include "Frontend.h"
 #include "Messages.h"
 #include "PlayerPed.h"
+#include "Vehicle.h"
 #include "Timer.h"
 #include "World.h"
 
@@ -25,6 +28,7 @@ static bool sLoading;		// servicing from the loading screen
 static bool sPendingStart;	// start the world at the next safe point
 static bool sPendingEnd;	// end-of-session UI at the next safe point
 static const char *sStatusKey;
+static uint32 sLastStateSentMs;
 static char sCode[MP_INVITE_CODE_LEN + 1];
 
 struct SRosterEntry
@@ -53,6 +57,7 @@ static void
 EndLocal(const char *statusKey)
 {
 	bool wasInGame = sInGame;
+	CRemotePlayer::RemoveAll();
 	sWantWorld = false;
 	sInGame = false;
 	sPendingStart = false;
@@ -97,12 +102,15 @@ public:
 		sRoster[id].used = true;
 		strncpy(sRoster[id].name, name, MP_MAX_NAME_LEN);
 		sRoster[id].name[MP_MAX_NAME_LEN] = '\0';
+		if(sInGame)
+			CRemotePlayer::Add(id, sRoster[id].name);
 	}
 	void OnPlayerLeft(uint8 id) override
 	{
 		if(id >= MP_MAX_PLAYERS)
 			return;
 		sRoster[id].used = false;
+		CRemotePlayer::Remove(id);
 	}
 	void OnSessionEnded(eEndReason reason) override
 	{
@@ -122,9 +130,17 @@ public:
 		// Game messages only make sense once the multiplayer world runs.
 		if(!sInGame)
 			return;
-		(void)from;
-		(void)type;
-		(void)body;
+		switch(type){
+		case GMSG_PLAYER_STATE: {
+			SPlayerState state;
+			CRemotePlayer *player = CRemotePlayer::Get(from);
+			if(player && state.Read(body))
+				player->OnState(state);
+			break;
+		}
+		default:
+			break;
+		}
 	}
 };
 static CNetGameListener sListener;
@@ -194,18 +210,75 @@ CNetGame::Service(void)
 	}
 }
 
+// Our own ped, at MP_SNAPSHOT_HZ, to everyone else.
+static void
+SendLocalState(void)
+{
+	CPlayerPed *player = FindPlayerPed();
+	if(player == nil)
+		return;
+	SPlayerState s;
+	s.time = CNetGame::SessionNow();
+	s.skin = 0;	// default skin by player id
+	CVehicle *vehicle = player->bInVehicle ? player->m_pMyVehicle : nil;
+	if(vehicle)
+		s.flags |= PSF_IN_VEHICLE;
+	if(player->DyingOrDead())
+		s.flags |= PSF_DEAD;
+	if(player->bIsAimingGun)
+		s.flags |= PSF_AIMING;
+	if(player->bIsDucking)
+		s.flags |= PSF_CROUCH;
+	if(player->GetPedState() == PED_JUMP)
+		s.flags |= PSF_JUMPING;
+	CVector pos = vehicle ? vehicle->GetPosition() : player->GetPosition();
+	CVector vel = vehicle ? vehicle->GetMoveSpeed() : player->GetMoveSpeed();
+	s.pos[0] = pos.x;
+	s.pos[1] = pos.y;
+	s.pos[2] = pos.z;
+	s.heading = player->m_fRotationCur;
+	s.vel[0] = MpSpeedToNet(vel.x);
+	s.vel[1] = MpSpeedToNet(vel.y);
+	s.vel[2] = MpSpeedToNet(vel.z);
+	s.moveState = (uint8)player->m_nMoveState;
+	s.weapon = (uint8)player->GetWeapon()->m_eWeaponType;
+	s.health = (uint8)Clamp(player->m_fHealth, 0.0f, 255.0f);
+	s.armour = (uint8)Clamp(player->m_fArmour, 0.0f, 255.0f);
+	s.vehicleId = MP_VEHICLE_NONE;
+	s.seat = MP_SEAT_DRIVER;
+	CByteWriter w;
+	s.Write(w);
+	sClient.SendGame(MP_ROUTE_ALL_BUT_SELF, 0, false, w);
+}
+
 void
 CNetGame::Process(void)
 {
-	if(!sInGame)
+	if(!IsActive())
 		return;
+	uint32 now = NetNow();
+	if(now - sLastStateSentMs >= 1000 / MP_SNAPSHOT_HZ){
+		sLastStateSentMs = now;
+		SendLocalState();
+	}
+	CRemotePlayer::UpdateAll();
 }
 
 void
 CNetGame::Render2d(void)
 {
-	if(!sInGame)
+	if(!IsActive())
 		return;
+	CRemotePlayer::RenderNameTags();
+}
+
+void
+CNetGame::OnWorldShutdown(void)
+{
+	// The engine is about to clear the world: drop our puppets first so
+	// nothing points at deleted peds. The session itself stays.
+	CRemotePlayer::RemoveAll();
+	sInGame = false;
 }
 
 bool
@@ -342,6 +415,9 @@ CNetGame::OnWorldStarted(void)
 		return;
 	}
 	sInGame = true;
+	for(int i = 0; i < MP_MAX_PLAYERS; i++)
+		if(sRoster[i].used && i != sClient.MyId())
+			CRemotePlayer::Add((uint8)i, sRoster[i].name);
 
 	CPlayerPed *player = FindPlayerPed();
 	if(player){

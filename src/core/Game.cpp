@@ -601,6 +601,7 @@ bool CGame::Initialise(const char* datFile)
 bool CGame::ShutDown(void)
 {
 #ifdef MULTIPLAYER
+	CNetGame::OnWorldShutdown();
 	CNetGame::Shutdown();
 #endif
 #ifdef USE_TEXTURE_POOL
@@ -754,6 +755,9 @@ void CGame::ReloadIPLs(void)
 
 void CGame::ShutDownForRestart(void)
 {
+#ifdef MULTIPLAYER
+	CNetGame::OnWorldShutdown();
+#endif
 #ifdef USE_TEXTURE_POOL
 	_TexturePoolsUnknown(false);
 #endif

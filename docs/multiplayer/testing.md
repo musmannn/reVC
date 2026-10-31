@@ -45,3 +45,13 @@ sudo tc qdisc add dev lo root netem delay 75ms
 - [ ] Join with the wrong code `VICE-ZZZZ` shows "No session with that code" in the *Session* row.
 - [ ] The 9th player gets "Session is full (8 players)".
 - [ ] In a session, the *Session* row shows `VICE-XXXX - n/8 players`; Name/Relay/Host/Join are greyed out and Leave works.
+
+## Plan 2, Task 5: remote players on foot
+
+- [ ] `revc-fakeclient --join CODE --bot walk --at <spawn x,y,z>`: a ped walks a smooth 10 m circle with a name tag, a health bar and a coloured radar blip.
+- [ ] Two real instances: walking, running, sprinting, jumping and crouching look right on the other screen.
+- [ ] A friend teleports (e.g. with the free-roam menu or a respawn) and their ped jumps there instead of sliding across the map.
+- [ ] With 150 ms simulated latency (`tc netem delay 75ms`), movement has no visible stutter.
+- [ ] A friend's weapon in hand matches what they hold.
+- [ ] Remote ped models (`sDefaultSkins` in `src/multiplayer/RemotePlayer.cpp`) are sensible civilians (placeholder ids).
+- [ ] Peds/traffic AI ignore remote players (no fleeing or fighting), and remote players are never despawned when far away.

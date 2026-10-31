@@ -58,6 +58,8 @@ public:
 	static bool WantsWorld(void);
 	// End of CGame::Initialise / ReInitGameObjectVariables.
 	static void OnWorldStarted(void);
+	// Start of CGame::ShutDownForRestart / ShutDown.
+	static void OnWorldShutdown(void);
 
 	static void LoadSettings(void);
 	static void SaveSettings(void);
