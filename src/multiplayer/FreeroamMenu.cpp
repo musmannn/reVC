@@ -6,6 +6,7 @@
 #include "NetGame.h"
 #include "NetChat.h"
 #include "NetVehicles.h"
+#include "NetRace.h"
 #include "SpawnPoints.h"
 #include "MpText.h"
 #include "Automobile.h"
@@ -251,6 +252,11 @@ CFreeroamMenu::SpawnAndEnter(int32 model, const CVector &where, float headingRad
 		return nil;
 	bool boat = CModelInfo::IsBoatModel(model);
 	CVector pos = where;
+	// Somewhere far away (a race grid): its collision isn't loaded yet.
+	if((pos - player->GetPosition()).Magnitude2D() > 100.0f){
+		CStreaming::LoadSceneCollision(pos);
+		CStreaming::LoadScene(pos);
+	}
 	if(boat){
 		float level;
 		if(!CWaterLevel::GetWaterLevel(pos.x, pos.y, pos.z, &level, true)){
@@ -267,6 +273,10 @@ CFreeroamMenu::SpawnAndEnter(int32 model, const CVector &where, float headingRad
 		pos.z = found ? z : CWorld::FindGroundZForCoord(pos.x, pos.y);
 	}
 
+	// Out of our current car first, so it counts as empty below.
+	if(player->bInVehicle)
+		CNetVehicles::WarpLocalPlayerOut();
+
 	// Load it right now, like the script's LOAD_ALL_MODELS_NOW.
 	CStreaming::RequestModel(model, STREAMFLAGS_DONT_REMOVE);
 	CTimer::Suspend();
@@ -278,8 +288,6 @@ CFreeroamMenu::SpawnAndEnter(int32 model, const CVector &where, float headingRad
 	// One spawned car each: the previous one goes if nobody is in it.
 	if(sLastSpawned && IsEmpty(sLastSpawned) && !CNetVehicles::IsRemote(sLastSpawned))
 		CNetVehicles::RemoveOwned(sLastSpawned);
-	if(player->bInVehicle)
-		CNetVehicles::WarpLocalPlayerOut();
 
 	CVehicle *vehicle;
 	if(boat)
@@ -411,7 +419,7 @@ CFreeroamMenu::Update(void)
 	}
 	CPlayerPed *player = FindPlayerPed();
 	if(!sOpen){
-		if(CNetChat::IsTyping() || FrontEndMenuManager.m_bMenuActive || player == nil || player->DyingOrDead())
+		if(CNetChat::IsTyping() || CNetRace::IsRacing() || FrontEndMenuManager.m_bMenuActive || player == nil || player->DyingOrDead())
 			return;
 		if(!pad->GetFJustDown(1) || pad->ArePlayerControlsDisabled())	// F2
 			return;

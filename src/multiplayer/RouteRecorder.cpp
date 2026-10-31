@@ -131,10 +131,9 @@ Save(void)
 
 	// Add it to the index unless it's there already.
 	static char index[8 * 1024];
-	ssize_t len = CFileMgr::LoadFile("data\\mp\\races\\index.txt", (uint8*)index, sizeof(index) - 128, "rb");
+	int len = MpReadTextFile("data\\mp\\races\\index.txt", index, sizeof(index) - 128);
 	if(len < 0)
 		len = 0;
-	index[len] = '\0';
 	bool listed = false;
 	for(const char *p = index; *p; ){
 		const char *end = p;
@@ -148,11 +147,15 @@ Save(void)
 		if(len > 0 && index[len - 1] != '\n')
 			index[len++] = '\n';
 		snprintf(index + len, sizeof(index) - len, "%s\n", file);
-		WriteFile("data\\mp\\races\\index.txt", index);
+		if(!WriteFile("data\\mp\\races\\index.txt", index)){
+			Say("Saved the route, but couldn't add it to data/mp/races/index.txt");
+			return;
+		}
 	}
 	CNetRace::Init();
 	char line[160];
-	snprintf(line, sizeof(line), "Saved %s (%d grid, %d checkpoints)", file, (int)route.numGrid, (int)route.numCheckpoints);
+	snprintf(line, sizeof(line), "%s %s (%d grid, %d checkpoints)", listed ? "Replaced" : "Saved", file,
+		(int)route.numGrid, (int)route.numCheckpoints);
 	Say(line);
 }
 
@@ -199,7 +202,7 @@ CRouteRecorder::OnCommand(const char *text)
 		return true;
 	}
 	if(strcmp(sub, "type") == 0 && rest){
-		sRec.circuit = strcmp(rest, "circuit") == 0;
+		sRec.circuit = rest[0] == 'c' || rest[0] == 'C';
 		Say(sRec.circuit ? "Type: circuit" : "Type: sprint");
 	}else if(strcmp(sub, "laps") == 0 && rest){
 		sRec.laps = Clamp(atoi(rest), 1, 9);

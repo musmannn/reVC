@@ -21,6 +21,7 @@
 #include "SpecialFX.h"
 #include "Sprite2d.h"
 #include "Vehicle.h"
+#include "ModelInfo.h"
 
 static const uint32 RESULTS_SHOW_MS = 10000;
 static const uint32 OUT_OF_CAR_RESPAWN_MS = 5000;
@@ -87,6 +88,8 @@ struct SLocalRace
 	uint32 holdHSince;
 	uint32 unfreezeAt;		// session time; 0 = not frozen by a respawn
 	bool wasDead;
+	uint32 retryAt;			// session time; a failed respawn tries again then
+	uint32 finishTime;		// ms from the start, once we've crossed the finish
 	int32 blipCurrent;
 	int32 blipNext;
 };
@@ -97,11 +100,16 @@ static SRaceStandings sResults;
 static uint32 sResultsUntil;		// NetNow
 static char sResultsRoute[MP_MAX_ROUTE_NAME + 1];
 
+static char sRacerNames[MP_MAX_PLAYERS][MP_MAX_NAME_LEN + 1];	// cached at START
+
 static const char*
 NameOf(uint8 id)
 {
 	const char *n = CNetGame::PlayerName(id);
-	return n ? n : "?";
+	if(n)
+		return n;
+	// Left since the start: the name we saw then.
+	return id < MP_MAX_PLAYERS && sRacerNames[id][0] ? sRacerNames[id] : "?";
 }
 
 static void
@@ -112,21 +120,43 @@ FormatTime(uint32 ms, char *out, int size)
 
 // ---- Routes
 
+// Reads at most size-1 bytes and NUL-terminates. (CFileMgr::LoadFile reads in
+// 16 KB chunks regardless of its maxlen.) Returns the length, or -1.
+int
+MpReadTextFile(const char *path, char *buf, int size)
+{
+	int fd = CFileMgr::OpenFile(path, "rb");
+	if(fd == 0)
+		return -1;
+	int len = (int)CFileMgr::Read(fd, buf, size - 1);
+	CFileMgr::CloseFile(fd);
+	if(len < 0)
+		len = 0;
+	buf[len] = '\0';
+	return len;
+}
+
 static bool
 LoadRouteFile(const char *file, SRaceRoute &route)
 {
 	static char text[64 * 1024];
 	char path[128];
 	snprintf(path, sizeof(path), "data\\mp\\races\\%s", file);
-	ssize_t n = CFileMgr::LoadFile(path, (uint8*)text, sizeof(text) - 1, "rb");
-	if(n < 0){
+	if(MpReadTextFile(path, text, sizeof(text)) < 0){
 		re3_debug("[MP] race route %s: can't read it\n", file);
 		return false;
 	}
-	text[n] = '\0';
 	char err[128];
 	if(!MpParseRoute(text, route, err, sizeof(err))){
 		re3_debug("[MP] race route %s skipped: %s\n", file, err);
+		return false;
+	}
+	// 3. Only land vehicles the engine knows; a bad id would crash every racer.
+	int32 m = route.vehicleModel;
+	CBaseModelInfo *mi = m < MODELINFOSIZE ? CModelInfo::GetModelInfo(m) : nil;
+	if(mi == nil || mi->GetModelType() != MITYPE_VEHICLE || CModelInfo::IsBoatModel(m) ||
+	   CModelInfo::IsHeliModel(m) || CModelInfo::IsPlaneModel(m)){
+		re3_debug("[MP] race route %s skipped: vehicle %d isn't a car or bike\n", file, (int)m);
 		return false;
 	}
 	return true;
@@ -150,9 +180,8 @@ CNetRace::Init(void)
 	sNumRoutes = 0;
 	CFileMgr::SetDir("");
 	static char index[8 * 1024];
-	ssize_t n = CFileMgr::LoadFile("data\\mp\\races\\index.txt", (uint8*)index, sizeof(index) - 1, "rb");
+	int n = MpReadTextFile("data\\mp\\races\\index.txt", index, sizeof(index));
 	if(n > 0){
-		index[n] = '\0';
 		char *line = strtok(index, "\r\n");
 		for(; line && sNumRoutes < MAX_ROUTES; line = strtok(nil, "\r\n")){
 			while(*line == ' ' || *line == '\t')
@@ -281,7 +310,7 @@ UpdateBlips(void)
 	if(next){
 		sRace.blipNext = CRadar::SetCoordBlip(BLIP_COORD, CpPos(next), 0x7F7F00FF, BLIP_DISPLAY_BLIP_ONLY);
 		CRadar::ChangeBlipColour(sRace.blipNext, RADAR_TRACE_YELLOW);
-		CRadar::ChangeBlipBrightness(sRace.blipNext, 0);
+		CRadar::ChangeBlipBrightness(sRace.blipNext, 1);	// 1 = dim, like the script's DIM_BLIP
 		CRadar::ChangeBlipScale(sRace.blipNext, 2);
 	}
 }
@@ -305,12 +334,18 @@ RespawnPoint(CVector &pos, float &heading)
 static void
 RespawnCar(void)
 {
+	uint32 now = CNetGame::SessionNow();
+	if(sRace.retryAt && (int32)(now - sRace.retryAt) < 0)
+		return;
 	CVector pos;
 	float heading;
 	RespawnPoint(pos, heading);
 	CVehicle *v = CFreeroamMenu::SpawnAndEnter(sRace.route.vehicleModel, pos, heading);
-	if(v == nil)
+	if(v == nil){
+		sRace.retryAt = now + 2000;	// don't hammer a blocking model load every frame
 		return;
+	}
+	sRace.retryAt = 0;
 	SetVehicle(v);
 	Freeze(true);
 	sRace.unfreezeAt = CNetGame::SessionNow() + RESPAWN_FREEZE_MS;
@@ -415,6 +450,9 @@ CheckCrossing(uint32 now)
 	if(sRace.nextSeq >= sRace.total){
 		DMAudio.PlayFrontEndSound(SOUND_PART_MISSION_COMPLETE, 0);
 		sRace.phase = PHASE_DONE;
+		sRace.finishTime = now - sRace.startTime;
+		sRace.unfreezeAt = 0;
+		Freeze(false);
 		ClearBlips();
 	}else{
 		DMAudio.PlayFrontEndSound(SOUND_RACE_START_1, 0);
@@ -516,6 +554,12 @@ CNetRace::Process(void)
 		sInvite.open = false;
 	if(sInvite.open && !sInvite.accepted && sRace.phase == PHASE_NONE &&
 	   !CNetChat::IsTyping() && CPad::GetPad(0)->GetFJustDown(2)){	// F3
+		if(FindRoute(sInvite.route) == nil){
+			// Joining would leave us "racing" on the host forever.
+			CNetChat::AddLine("You don't have this race's route file", CNetChat::NOTICE);
+			sInvite.accepted = true;
+			return;
+		}
 		SRaceAccept msg;
 		msg.raceId = sInvite.raceId;
 		CByteWriter w;
@@ -528,6 +572,17 @@ CNetRace::Process(void)
 	switch(sRace.phase){
 	case PHASE_COUNTDOWN: {
 		int32 toGo = (int32)(sRace.startTime - now);
+		CPlayerPed *player = FindPlayerPed();
+		if(player && player->DyingOrDead())
+			sRace.wasDead = true;
+		else if(sRace.wasDead && player){
+			sRace.wasDead = false;
+			RespawnCar();
+			sRace.unfreezeAt = 0;	// held until GO
+		}
+		// A respawn re-enables every control; keep the grid frozen.
+		if(toGo > 0)
+			Freeze(true);
 		int shown = toGo > 2000 ? 3 : toGo > 1000 ? 2 : toGo > 0 ? 1 : 0;
 		if(toGo <= 3000 && shown < sRace.countdownShown){
 			static const int16 sounds[4] = { SOUND_RACE_START_GO, SOUND_RACE_START_1, SOUND_RACE_START_2, SOUND_RACE_START_3 };
@@ -588,6 +643,8 @@ CNetRace::OnMessage(uint8 from, uint8 type, CByteReader &body)
 		SRaceInvite m;
 		if(from != 0 || !m.Read(body))
 			return;
+		if(sInvite.open && sInvite.raceId == m.raceId)
+			return;	// a resend for a late joiner
 		sInvite.open = true;
 		sInvite.accepted = m.startedBy == me;	// the starter is in already
 		sInvite.raceId = m.raceId;
@@ -608,6 +665,10 @@ CNetRace::OnMessage(uint8 from, uint8 type, CByteReader &body)
 			return;
 		sInvite.open = false;
 		memset(&sStandings, 0, sizeof(sStandings));
+		memset(sRacerNames, 0, sizeof(sRacerNames));
+		for(int i = 0; i < m.n; i++)
+			if(m.ids[i] < MP_MAX_PLAYERS && CNetGame::PlayerName(m.ids[i]))
+				strcpy(sRacerNames[m.ids[i]], CNetGame::PlayerName(m.ids[i]));
 		for(int i = 0; i < m.n; i++)
 			if(m.ids[i] == me)
 				BeginRace(m, i);
@@ -645,10 +706,13 @@ CNetRace::OnMessage(uint8 from, uint8 type, CByteReader &body)
 		if(from != 0 || !m.Read(body))
 			return;
 		const char *why = m.reason == RACE_BUSY ? "A race is already running" :
-			m.reason == RACE_BAD_ROUTE ? "The host doesn't have that route" : "Nobody joined the race";
+			m.reason == RACE_BAD_ROUTE ? "The host doesn't have that route" :
+			m.reason == RACE_ABORTED ? "The race was called off" : "Nobody joined the race";
 		CNetChat::AddLine(why, CNetChat::NOTICE);
 		if(m.raceId == sInvite.raceId && m.reason != RACE_BUSY)
 			sInvite.open = false;
+		if(m.reason == RACE_ABORTED && sRace.phase != PHASE_NONE && sRace.raceId == m.raceId)
+			LeaveRace();
 		break;
 	}
 	default:
@@ -677,6 +741,12 @@ CNetRace::OnPlayerLeft(uint8 id)
 void
 CNetRace::Reset(void)
 {
+	if(CNetGame::IsHost() && sHost.IsBusy()){
+		SRaceCancel cancel;
+		cancel.raceId = sHost.RaceId();
+		cancel.reason = RACE_ABORTED;
+		sSink.SendCancel(cancel, MP_PLAYER_NONE);	// a no-op if the session is gone
+	}
 	LeaveRace();
 	sHost.Reset();
 	memset(&sInvite, 0, sizeof(sInvite));
@@ -760,7 +830,8 @@ CNetRace::Render(void)
 			y += lh;
 		}
 		char t[16];
-		FormatTime(toGo < 0 ? (uint32)(-toGo) : 0, t, sizeof(t));
+		uint32 elapsed = sRace.phase == PHASE_DONE ? sRace.finishTime : (toGo < 0 ? (uint32)(-toGo) : 0);
+		FormatTime(elapsed, t, sizeof(t));
 		snprintf(line, sizeof(line), "TIME %s", t);
 		CFont::PrintString(x, y, MpWideString(line));
 		y += lh;

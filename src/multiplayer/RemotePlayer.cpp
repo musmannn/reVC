@@ -184,7 +184,7 @@ CRemotePlayer::Spawn(void)
 	m_blip = CRadar::SetEntityBlip(BLIP_CHAR, CPools::GetPedRef(ped), BlipColour(m_id), BLIP_DISPLAY_BLIP_ONLY);
 	// SetEntityBlip ignores its colour argument.
 	CRadar::ChangeBlipColour(m_blip, BlipColour(m_id));
-	CRadar::ChangeBlipBrightness(m_blip, 1);
+	CRadar::ChangeBlipBrightness(m_blip, 0);	// 0 = bright (m_bDim is passed as "bright")
 	CRadar::ChangeBlipScale(m_blip, 2);
 }
 

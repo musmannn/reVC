@@ -170,8 +170,17 @@ public:
 		case GMSG_PLAYER_STATE: {
 			SPlayerState state;
 			CRemotePlayer *player = CRemotePlayer::Get(from);
-			if(player && state.Read(body))
+			if(player && state.Read(body)){
+				bool first = !player->m_bHaveState;
 				player->OnState(state);
+				// Their first state means their world is up: what we sent at
+				// join time was dropped while they were loading, so send it now.
+				if(first){
+					CNetVehicles::OnPlayerJoined(from);
+					CNetChat::SendWorld();
+					CNetRace::OnPlayerJoined(from);
+				}
+			}
 			break;
 		}
 		case GMSG_VEHICLE_STATE: {

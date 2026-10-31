@@ -32,4 +32,7 @@ public:
 	static void RequestRace(int routeIndex);
 };
 
+// Reads a small text file (bounded, NUL-terminated). Returns length or -1.
+int MpReadTextFile(const char *path, char *buf, int size);
+
 #endif

@@ -236,7 +236,8 @@ enum eRaceCancelReason
 {
 	RACE_BUSY,		// a race is already pending or running
 	RACE_NO_RACERS,		// nobody accepted
-	RACE_BAD_ROUTE		// the host lacks that route file
+	RACE_BAD_ROUTE,		// the host lacks that route file
+	RACE_ABORTED		// the host's world restarted mid-race
 };
 
 struct SRaceRequest
