@@ -76,6 +76,8 @@ add_library(mpcommon STATIC
 	common/ByteStream.cpp
 	common/Protocol.cpp
 	common/InviteCode.cpp
+	common/SessionClock.cpp
+	common/PoseBuffer.cpp
 )
 target_include_directories(mpcommon PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/common)
 target_link_libraries(mpcommon PUBLIC enet)
@@ -90,6 +92,8 @@ add_executable(mp_tests
 	tests/test_bytestream.cpp
 	tests/test_protocol.cpp
 	tests/test_invitecode.cpp
+	tests/test_sessionclock.cpp
+	tests/test_posebuffer.cpp
 )
 target_include_directories(mp_tests PRIVATE ${MP_VENDOR_DIR}/doctest)
 target_link_libraries(mp_tests PRIVATE mpcommon)
