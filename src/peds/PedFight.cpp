@@ -25,6 +25,10 @@
 #include "Bike.h"
 #include "Glass.h"
 #include "SpecialFX.h"
+#ifdef MULTIPLAYER
+#include "NetGame.h"
+#include "NetCombat.h"
+#endif
 
 uint16 nPlayerInComboMove;
 RpClump* flyingClumpTemp;
@@ -2657,6 +2661,12 @@ CPed::InflictDamage(CEntity *damagedBy, eWeaponType method, float damage, ePedPi
 	bool headShot = false;
 	bool willLinger = false;
 	int random;
+
+#ifdef MULTIPLAYER
+	// Damage between players is decided by the victim's own game.
+	if (CNetGame::IsActive() && CNetCombat::InterceptDamage(this, damagedBy, method, damage, pedPiece, direction))
+		return false;
+#endif
 
 	if (damagedBy == FindPlayerPed() && damagedBy != this && damage > 3.0f)
 		++CWorld::Players[CWorld::PlayerInFocus].m_nHavocLevel;

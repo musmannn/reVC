@@ -7,6 +7,7 @@
 #include "SpawnPoints.h"
 #include "RemotePlayer.h"
 #include "NetVehicles.h"
+#include "NetCombat.h"
 #include "GameProtocol.h"
 #include "Frontend.h"
 #include "Messages.h"
@@ -60,6 +61,7 @@ EndLocal(const char *statusKey)
 	bool wasInGame = sInGame;
 	CRemotePlayer::RemoveAll();
 	CNetVehicles::Clear();
+	CNetCombat::Reset();
 	sWantWorld = false;
 	sInGame = false;
 	sPendingStart = false;
@@ -173,6 +175,30 @@ public:
 			// Seat decisions only count from the host.
 			if(from == 0 && msg.Read(body))
 				CNetVehicles::OnSeat(msg);
+			break;
+		}
+		case GMSG_DAMAGE: {
+			SDamage msg;
+			if(msg.Read(body))
+				CNetCombat::OnDamage(from, msg);
+			break;
+		}
+		case GMSG_DIED: {
+			SDied msg;
+			if(msg.Read(body))
+				CNetCombat::OnDied(from, msg);
+			break;
+		}
+		case GMSG_RESPAWNED: {
+			SRespawned msg;
+			if(msg.Read(body))
+				CNetCombat::OnRespawned(from, msg);
+			break;
+		}
+		case GMSG_SHOT: {
+			SShot msg;
+			if(msg.Read(body))
+				CNetCombat::OnShot(from, msg);
 			break;
 		}
 		case GMSG_VEHICLE_EXIT: {
@@ -302,6 +328,7 @@ CNetGame::Process(void)
 	uint32 renderTime = SessionNow() - MP_INTERP_DELAY_MS;
 	CNetVehicles::Update(renderTime);
 	CRemotePlayer::UpdateAll();
+	CNetCombat::Update();
 	if(now - sLastStateSentMs >= 1000 / MP_SNAPSHOT_HZ){
 		sLastStateSentMs = now;
 		SendLocalState();

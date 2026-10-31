@@ -68,3 +68,15 @@ sudo tc qdisc add dev lo root netem delay 75ms
 - [ ] Drive at 150 ms latency: no stutter; driving into the friend's car pushes your car.
 - [ ] A friend spawns a vehicle far away / a model you haven't loaded (e.g. a Hunter): it appears once streamed, without a crash.
 - [ ] A friend's car blows up on your screen when it blows up on theirs.
+
+## Plan 2, Task 7: combat, death and respawn
+
+- [ ] Shoot a friend: their health drops on their HUD (not just on yours).
+- [ ] Armour absorbs damage first.
+- [ ] A kill shows "Tommy killed Lance" on both screens; dying alone shows "Lance died".
+- [ ] The victim respawns at a spawn point with a bat and pistol, no money lost, clock unchanged, no hospital taxi.
+- [ ] The friend's shots show tracers and gunshot sounds on your screen, but never hurt anything there.
+- [ ] Running a friend over in a car damages them (on their screen); their car hitting you doesn't double the damage.
+- [ ] Dying in a car respawns you on foot; the car stays behind.
+- [ ] Both players die at the same time: both respawn normally.
+- [ ] Single player: dying still costs $100 and weapons, passes time, and takes you to hospital.
