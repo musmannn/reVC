@@ -2506,6 +2506,27 @@ CMenuManager::DrawBackground(bool transitionCall)
 			m_aFrontEndSprites[MENUSPRITE_VCLOGO].Draw(CRect(SCREEN_STRETCH_X(27.0f), MENU_Y(8.0f), SCREEN_STRETCH_X(27.0f) + MENU_X(130.f), MENU_Y(138.0f)), CRGBA(255, 255, 255, FadeIn(255)));
 		}
 
+#ifdef MADE_BY_TEXT
+	if (m_nCurrScreen == MENUPAGE_START_MENU) {
+		wchar madeBy[32];
+		AsciiToUnicode("made by usman", madeBy);
+		CFont::SetBackgroundOff();
+		CFont::SetPropOn();
+		CFont::SetCentreOff();
+		CFont::SetJustifyOff();
+		CFont::SetRightJustifyOff();
+		CFont::SetWrapx(SCREEN_WIDTH);
+		CFont::SetScale(SCREEN_SCALE_X(SMALLESTTEXT_X_SCALE), SCREEN_SCALE_Y(SMALLESTTEXT_Y_SCALE));
+		CFont::SetFontStyle(FONT_STANDARD);
+		CFont::SetDropShadowPosition(1);
+		CFont::SetDropColor(CRGBA(0, 0, 0, FadeIn(255)));
+		CFont::SetColor(CRGBA(255, 255, 255, FadeIn(255)));
+		CFont::PrintString(SCREEN_STRETCH_X(27.0f), SCREEN_SCALE_FROM_BOTTOM(HELPER_TEXT_BOTTOM_MARGIN), madeBy);
+		CFont::DrawFonts();
+		CFont::SetDropShadowPosition(0);
+	}
+#endif
+
 	if (m_ShowEmptyBindingError) {
 		static uint32 lastBindingError = CTimer::GetTimeInMillisecondsPauseMode();
 		static bool bindingErrorShown = false;

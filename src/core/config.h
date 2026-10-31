@@ -509,6 +509,8 @@ static_assert(false, "SUPPORT_XBOX_SCRIPT and SUPPORT_MOBILE_SCRIPT are mutually
 	#define MULTIPLAYER
 #endif
 
+#define MADE_BY_TEXT // "made by usman" in the corner of the start menu
+
 #endif // VANILLA_DEFINES
 
 #if defined(AUDIO_OAL) && !defined(EXTERNAL_3D_SOUND)
