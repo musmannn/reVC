@@ -57,6 +57,9 @@
 #include "Renderer.h"
 #include "Replay.h"
 #include "Restart.h"
+#ifdef MULTIPLAYER
+#include "NetGame.h"
+#endif
 #include "RoadBlocks.h"
 #include "Rubbish.h"
 #include "SceneEdit.h"
@@ -321,6 +324,9 @@ void CGame::ShutdownRenderWare(void)
 
 bool CGame::InitialiseOnceAfterRW(void)
 {
+#ifdef MULTIPLAYER
+	CNetGame::Init();
+#endif
 	TheText.Load();
 	CTimer::Initialise();
 	CTempColModels::Initialise();
@@ -586,11 +592,17 @@ bool CGame::Initialise(const char* datFile)
 
 	DMAudio.SetStartingTrackPositions(TRUE);
 	DMAudio.ChangeMusicMode(MUSICMODE_GAME);
+#ifdef MULTIPLAYER
+	CNetGame::OnWorldStarted();
+#endif
 	return true;
 }
 
 bool CGame::ShutDown(void)
 {
+#ifdef MULTIPLAYER
+	CNetGame::Shutdown();
+#endif
 #ifdef USE_TEXTURE_POOL
 	_TexturePoolsUnknown(false);
 #endif
@@ -730,6 +742,9 @@ void CGame::ReInitGameObjectVariables(void)
 	
 	for (int32 i = 0; i < MAX_PADS; i++)
 		CPad::GetPad(i)->Clear(true);
+#ifdef MULTIPLAYER
+	CNetGame::OnWorldStarted();
+#endif
 }
 
 void CGame::ReloadIPLs(void)
@@ -844,6 +859,10 @@ void CGame::InitialiseWhenRestarting(void)
 
 void CGame::Process(void) 
 {
+#ifdef MULTIPLAYER
+	// Before the pause checks: the network runs while the game is paused.
+	CNetGame::Service();
+#endif
 	CPad::UpdatePads();
 #ifdef USE_CUSTOM_ALLOCATOR
 	ProcessTidyUpMemory();
@@ -933,6 +952,9 @@ void CGame::Process(void)
 		PUSH_MEMID(MEMID_WORLD);
 		CWorld::Process();
 		POP_MEMID();
+#ifdef MULTIPLAYER
+		CNetGame::Process();
+#endif
 
 		gAccidentManager.Update();
 		CPacManPickups::Update();

@@ -77,6 +77,9 @@
 #include "VarConsole.h"
 #ifdef USE_OUR_VERSIONING
 #include "GitSHA1.h"
+#ifdef MULTIPLAYER
+#include "NetGame.h"
+#endif
 #endif
 
 GlobalScene Scene;
@@ -649,6 +652,11 @@ void
 LoadingScreen(const char *str1, const char *str2, const char *splashscreen)
 {
 	CSprite2d *splash;
+
+#ifdef MULTIPLAYER
+	// Loading can take a while; keep the session connection alive.
+	CNetGame::ServiceDuringLoad();
+#endif
 
 #ifdef DISABLE_LOADING_SCREEN
 	if (str1 && str2)
@@ -1493,6 +1501,9 @@ Render2dStuff(void)
 	CDarkel::DrawMessages();
 	CGarages::PrintMessages();
 	CPad::PrintErrorMessage();
+#ifdef MULTIPLAYER
+	CNetGame::Render2d();
+#endif
 	CFont::DrawFonts();
 #ifndef MASTER
 	COcclusion::Render();
@@ -1712,6 +1723,9 @@ FrontendIdle(void)
 	CSprite2d::InitPerFrame();
 	CFont::InitPerFrame();
 	CPad::UpdatePads();
+#ifdef MULTIPLAYER
+	CNetGame::Service();
+#endif
 	FrontEndMenuManager.Process();
 
 	if(RsGlobal.quit)

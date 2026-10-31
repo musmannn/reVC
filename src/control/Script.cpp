@@ -2,6 +2,9 @@
 
 #include "Script.h"
 #include "ScriptCommands.h"
+#ifdef MULTIPLAYER
+#include "NetGame.h"
+#endif
 
 #include "AnimBlendAssociation.h"
 #include "AudioManager.h"
@@ -758,10 +761,23 @@ void CTheScripts::Init()
 	if(CPad::GetPad(0)->GetChar('R')) ScriptToLoad = 1;
 	if(CPad::GetPad(0)->GetChar('D')) ScriptToLoad = 2;
 
+#ifdef MULTIPLAYER
+	// A multiplayer world starts from the free-roam script, not the story.
+	int savedScriptToLoad = ScriptToLoad;
+	if(CNetGame::WantsWorld())
+		ScriptToLoad = 1;
+#endif
 	int mainf = OpenScript();
+#ifdef MULTIPLAYER
+	ScriptToLoad = savedScriptToLoad;
+#endif
 #else
 	CFileMgr::SetDir("data");
+#ifdef MULTIPLAYER
+	int mainf = CFileMgr::OpenFile(CNetGame::WantsWorld() ? "freeroam_miami.scm" : "main.scm", "rb");
+#else
 	int mainf = CFileMgr::OpenFile("main.scm", "rb");
+#endif
 #endif
 	CFileMgr::Read(mainf, (char*)ScriptSpace, SIZE_MAIN_SCRIPT);
 	CFileMgr::CloseFile(mainf);

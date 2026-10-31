@@ -196,6 +196,9 @@ CustomFrontendOptionsPopulate(void)
 #ifdef LOAD_INI_SETTINGS
 #define MINI_CASE_SENSITIVE
 #include "ini.h"
+#ifdef MULTIPLAYER
+#include "NetGame.h"
+#endif
 
 #ifdef __APPLE__
 static const char *
@@ -594,6 +597,11 @@ bool LoadINISettings()
 #ifdef NO_MOVIES
 	ReadIniIfExists("General", "NoMovies", &gbNoMovies);
 #endif
+#ifdef MULTIPLAYER
+	ReadIniIfExists("Multiplayer", "Name", CNetGame::ms_playerName, sizeof(CNetGame::ms_playerName));
+	ReadIniIfExists("Multiplayer", "Relay", CNetGame::ms_relayAddress, sizeof(CNetGame::ms_relayAddress));
+	CNetGame::LoadSettings();
+#endif
 
 #ifdef CUSTOM_FRONTEND_OPTIONS
 	bool migrate = cfg.get("FrontendOptions").size() != 0;
@@ -702,6 +710,10 @@ void SaveINISettings()
 #endif
 #ifdef NO_MOVIES
 	StoreIni("General", "NoMovies", gbNoMovies);
+#endif
+#ifdef MULTIPLAYER
+	StoreIni("Multiplayer", "Name", CNetGame::ms_playerName, sizeof(CNetGame::ms_playerName));
+	StoreIni("Multiplayer", "Relay", CNetGame::ms_relayAddress, sizeof(CNetGame::ms_relayAddress));
 #endif
 #ifdef CUSTOM_FRONTEND_OPTIONS
 	for (int i = 0; i < MENUPAGES; i++) {

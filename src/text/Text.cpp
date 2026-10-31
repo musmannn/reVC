@@ -6,6 +6,9 @@
 #endif
 #include "Frontend.h"
 #include "Messages.h"
+#ifdef MULTIPLAYER
+#include "MpText.h"
+#endif
 #include "Text.h"
 #include "Timer.h"
 
@@ -119,6 +122,11 @@ CText::Unload(void)
 wchar*
 CText::Get(const char *key)
 {
+#ifdef MULTIPLAYER
+	wchar *mpText = MpGetText(key);
+	if(mpText)
+		return mpText;
+#endif
 	uint8 result = false;
 #if defined (FIX_BUGS) || defined(FIX_BUGS_64)
 	wchar *outstr = keyArray.Search(key, data.chars, &result);
