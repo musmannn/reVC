@@ -33,6 +33,7 @@ static SMpTextEntry sTexts[] = {
 	{ "MP_BADNAME", "Choose a different name" },
 	{ "MP_BADRELAY", "Can't reach the relay server" },
 	{ "MP_NOSAVE", "Saving is disabled in multiplayer" },
+	{ "MP_WATER", "Must be on water" },
 };
 
 static void

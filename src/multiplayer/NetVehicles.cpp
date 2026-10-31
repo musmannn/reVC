@@ -400,8 +400,8 @@ CNetVehicles::OnExitRequest(uint8 from, const SVehicleExit &msg)
 }
 
 // Out of the car on the driver's side, like WARP_PLAYER_FROM_CAR_TO_COORD.
-static void
-WarpLocalPlayerOut(void)
+void
+CNetVehicles::WarpLocalPlayerOut(void)
 {
 	CPlayerPed *player = FindPlayerPed();
 	if(player == nil || !player->bInVehicle || player->m_pMyVehicle == nil)

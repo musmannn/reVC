@@ -35,8 +35,8 @@ CSpawnPoints::Pick(uint8 playerId, CVector &pos, float &heading)
 	heading = DEGTORAD(p.headingDeg);
 }
 
-static void
-GiveWithModel(CPlayerPed *player, eWeaponType weapon, uint32 ammo)
+void
+CSpawnPoints::GiveWeaponWithModel(CPlayerPed *player, eWeaponType weapon, uint32 ammo)
 {
 	CWeaponInfo *info = CWeaponInfo::GetWeaponInfo(weapon);
 	if(info->m_nModelId > 0)
@@ -52,8 +52,8 @@ CSpawnPoints::GiveLoadout(CPlayerPed *player)
 {
 	if(player == nil)
 		return;
-	GiveWithModel(player, WEAPONTYPE_BASEBALLBAT, 1);
-	GiveWithModel(player, WEAPONTYPE_COLT45, 68);
+	GiveWeaponWithModel(player, WEAPONTYPE_BASEBALLBAT, 1);
+	GiveWeaponWithModel(player, WEAPONTYPE_COLT45, 68);
 	player->SetCurrentWeapon(WEAPONTYPE_COLT45);
 	player->m_fHealth = 100.0f;
 	player->m_fArmour = 0.0f;

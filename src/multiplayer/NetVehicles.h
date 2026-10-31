@@ -52,6 +52,8 @@ public:
 
 	// Local player's seat for PLAYER_STATE: vehicle id (or MP_VEHICLE_NONE).
 	static uint16 LocalVehicleId(uint8 &seat);
+	// Out of the current vehicle on the driver's side, no animation.
+	static void WarpLocalPlayerOut(void);
 };
 
 #endif

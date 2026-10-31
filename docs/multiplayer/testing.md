@@ -90,3 +90,13 @@ sudo tc qdisc add dev lo root netem delay 75ms
 - [ ] "Lance joined" / "Lance left" notices appear.
 - [ ] The host changes the weather (debug menu) and the friend sees it within 10 s; game time matches within 2 minutes.
 - [ ] After leaving the session the weather goes back to normal.
+
+## Plan 2, Task 9: free-roam menu
+
+- [ ] `F2` opens the menu; arrows/Enter/Backspace navigate; `F2` or *Close* closes it; player controls are off while it's open.
+- [ ] Every vehicle entry spawns the right model 5 m ahead, with you in the driver seat, and the friend sees it.
+- [ ] Spawning a second car removes the first if nobody is in it.
+- [ ] Every weapon category gives the weapon (500 ammo, melee 1) and puts it in hand.
+- [ ] *Health* and *Armour* fill up.
+- [ ] `F2` while typing chat does nothing; `T` while the menu is open does nothing.
+- [ ] Spawning a boat on land shows "Must be on water".

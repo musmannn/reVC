@@ -11,6 +11,7 @@
 #include "NetVehicles.h"
 #include "NetCombat.h"
 #include "NetChat.h"
+#include "FreeroamMenu.h"
 #include "GameProtocol.h"
 #include "Frontend.h"
 #include "Messages.h"
@@ -68,6 +69,7 @@ EndLocal(const char *statusKey)
 	CNetCombat::Reset();
 	CNetChat::Reset();
 	CNetChat::ReleaseWorld();
+	CFreeroamMenu::Reset();
 	sWantWorld = false;
 	sInGame = false;
 	sPendingStart = false;
@@ -369,12 +371,14 @@ CNetGame::Render2d(void)
 		return;
 	CRemotePlayer::RenderNameTags();
 	CNetChat::Render();
+	CFreeroamMenu::Render();
 }
 
 void
 CNetGame::AfterPadUpdate(void)
 {
 	CNetChat::Update();
+	CFreeroamMenu::Update();
 }
 
 void
@@ -384,6 +388,7 @@ CNetGame::OnWorldShutdown(void)
 	// nothing points at deleted peds. The session itself stays.
 	CRemotePlayer::RemoveAll();
 	CNetVehicles::Clear();
+	CFreeroamMenu::Reset();
 	sInGame = false;
 }
 
