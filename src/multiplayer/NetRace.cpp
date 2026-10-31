@@ -720,7 +720,7 @@ CNetRace::OnMessage(uint8 from, uint8 type, CByteReader &body)
 		SRaceCancel m;
 		if(from != 0 || !m.Read(body))
 			return;
-		const char *why = m.reason == RACE_BUSY ? "A race is already running" :
+		const char *why = m.reason == RACE_BUSY ? "A race or match is already on" :
 			m.reason == RACE_BAD_ROUTE ? "The host doesn't have that route" :
 			m.reason == RACE_ABORTED ? "The race was called off" : "Nobody joined the race";
 		CNetChat::AddLine(why, CNetChat::NOTICE);

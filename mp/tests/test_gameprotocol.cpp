@@ -471,6 +471,7 @@ TEST_CASE("match messages round trip")
 		in.matchId = 6;
 		in.teamScore[0] = 12;
 		in.teamScore[1] = -3;
+		in.winnerTeam = MP_TEAM_BLUE;
 		in.n = MP_MAX_PLAYERS;
 		for(uint8_t i = 0; i < MP_MAX_PLAYERS; i++){
 			in.entries[i].id = i;
@@ -484,6 +485,7 @@ TEST_CASE("match messages round trip")
 		CHECK(size <= 120);
 		CHECK(out.matchId == 6);
 		CHECK(out.teamScore[1] == -3);
+		CHECK(out.winnerTeam == MP_TEAM_BLUE);
 		REQUIRE(out.n == MP_MAX_PLAYERS);
 		CHECK(out.entries[0].score == -3);
 		CHECK(out.entries[7].kills == 14);

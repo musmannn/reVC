@@ -457,6 +457,7 @@ SMatchScores::Write(CByteWriter &w) const
 	w.WriteU16(matchId);
 	w.WriteI16(teamScore[0]);
 	w.WriteI16(teamScore[1]);
+	w.WriteU8(winnerTeam);
 	uint8_t count = n > MP_MAX_PLAYERS ? (uint8_t)MP_MAX_PLAYERS : n;
 	w.WriteU8(count);
 	for(uint8_t i = 0; i < count; i++){
@@ -471,7 +472,8 @@ SMatchScores::Write(CByteWriter &w) const
 bool
 SMatchScores::Read(CByteReader &r)
 {
-	if(!r.ReadU16(matchId) || !r.ReadI16(teamScore[0]) || !r.ReadI16(teamScore[1]) || !r.ReadU8(n) || n > MP_MAX_PLAYERS)
+	if(!r.ReadU16(matchId) || !r.ReadI16(teamScore[0]) || !r.ReadI16(teamScore[1]) || !r.ReadU8(winnerTeam) ||
+	   !r.ReadU8(n) || n > MP_MAX_PLAYERS)
 		return false;
 	for(uint8_t i = 0; i < n; i++)
 		if(!r.ReadU8(entries[i].id) || !r.ReadU8(entries[i].team) || !r.ReadI16(entries[i].score) ||

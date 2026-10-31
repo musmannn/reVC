@@ -62,7 +62,6 @@ struct SLocalMatch
 	SMatchStart start;
 	uint8 myTeam;
 	int countdownShown;
-	uint32 respawns;
 };
 static SLocalMatch sMatch;
 static SMatchScores sScores;		// latest, for the HUD and the scoreboard
@@ -71,14 +70,17 @@ static uint8 sResultsMode;
 static uint32 sResultsUntil;		// NetNow
 static char sNames[MP_MAX_PLAYERS][MP_MAX_NAME_LEN + 1];	// cached at START
 static bool sMenuRegistered;
+static uint16 sLastFinishedMatch;	// ended or cancelled: its late SCORES are dropped
+static bool sHaveFinished;
 
 static const char*
 NameOf(uint8 id)
 {
+	// The name at the start of the match first: ids get reused.
+	if(id < MP_MAX_PLAYERS && sNames[id][0])
+		return sNames[id];
 	const char *n = CNetGame::PlayerName(id);
-	if(n)
-		return n;
-	return id < MP_MAX_PLAYERS && sNames[id][0] ? sNames[id] : "?";
+	return n ? n : "?";
 }
 
 static const char*
@@ -169,6 +171,7 @@ CNetMatch::GiveMatchLoadout(CPlayerPed *player)
 {
 	if(player == nil)
 		return;
+	player->ClearWeapons();	// the same loadout for everyone, every life
 	CSpawnPoints::GiveWeaponWithModel(player, WEAPONTYPE_COLT45, 120);
 	CSpawnPoints::GiveWeaponWithModel(player, WEAPONTYPE_UZI, 300);
 	CSpawnPoints::GiveWeaponWithModel(player, WEAPONTYPE_SHOTGUN, 40);
@@ -191,14 +194,13 @@ static void
 SpawnForMatch(void)
 {
 	CPlayerPed *player = FindPlayerPed();
-	if(player == nil)
-		return;
+	if(player == nil || player->DyingOrDead())
+		return;	// the respawn puts us in, with the match loadout
 	if(player->bInVehicle)
 		CNetVehicles::WarpLocalPlayerOut();
 	CVector pos;
 	float heading;
-	// Spread players over the spawn points.
-	CSpawnPoints::Pick((uint8)(CNetGame::MyId() + sMatch.respawns), pos, heading);
+	CSpawnPoints::Pick(CNetGame::MyId(), pos, heading);
 	CStreaming::LoadSceneCollision(pos);
 	player->Teleport(pos);
 	player->m_fRotationCur = player->m_fRotationDest = heading;
@@ -274,6 +276,12 @@ CNetMatch::OnPlayerLeft(uint8 id)
 {
 	if(CNetGame::IsHost())
 		sHost.OnLeft(id);
+	// The relay reuses ids: a newcomer with this one isn't in our match.
+	for(int i = 0; i < sMatch.start.n; i++)
+		if(sMatch.start.ids[i] == id){
+			sMatch.start.ids[i] = MP_PLAYER_NONE;
+			sMatch.start.teams[i] = MP_TEAM_NONE;
+		}
 }
 
 // ---- Per frame
@@ -316,8 +324,6 @@ CNetMatch::Process(void)
 		break;
 	}
 	case PHASE_PLAYING:
-		if(player && player->DyingOrDead())
-			sMatch.respawns++;
 		break;
 	default:
 		break;
@@ -377,7 +383,7 @@ CNetMatch::OnMessage(uint8 from, uint8 type, CByteReader &body)
 	}
 	case GMSG_MATCH_SCORES: {
 		SMatchScores m;
-		if(from == 0 && m.Read(body))
+		if(from == 0 && m.Read(body) && !(sHaveFinished && m.matchId == sLastFinishedMatch))
 			sScores = m;
 		break;
 	}
@@ -390,13 +396,13 @@ CNetMatch::OnMessage(uint8 from, uint8 type, CByteReader &body)
 		char line[128];
 		if(mode == MATCH_TDM){
 			int16 r = m.teamScore[MP_TEAM_RED], b = m.teamScore[MP_TEAM_BLUE];
-			uint8 winner = m.n ? m.entries[0].team : MP_TEAM_NONE;
-			if(r == b && winner != MP_TEAM_NONE)
-				snprintf(line, sizeof(line), "%s team won (the other team left) %d-%d", winner == MP_TEAM_BLUE ? "Blue" : "Red", (int)r, (int)b);
-			else if(r == b)
+			uint8 winner = m.winnerTeam;
+			bool forfeit = winner != MP_TEAM_NONE && (winner == MP_TEAM_RED ? r <= b : b <= r);
+			if(winner == MP_TEAM_NONE)
 				snprintf(line, sizeof(line), "Team Deathmatch: a draw, %d-%d", (int)r, (int)b);
 			else
-				snprintf(line, sizeof(line), "%s team won the Team Deathmatch %d-%d", r > b ? "Red" : "Blue", (int)Max(r, b), (int)Min(r, b));
+				snprintf(line, sizeof(line), "%s team won the Team Deathmatch %d-%d (Red-Blue)%s",
+					winner == MP_TEAM_BLUE ? "Blue" : "Red", (int)r, (int)b, forfeit ? ", the other team left" : "");
 		}else if(m.n)
 			snprintf(line, sizeof(line), "%s won the Deathmatch with %d", NameOf(m.entries[0].id), (int)m.entries[0].score);
 		else
@@ -409,6 +415,8 @@ CNetMatch::OnMessage(uint8 from, uint8 type, CByteReader &body)
 			LeaveMatch();
 		}
 		memset(&sScores, 0, sizeof(sScores));
+		sLastFinishedMatch = m.matchId;
+		sHaveFinished = true;
 		break;
 	}
 	case GMSG_MATCH_CANCEL: {
@@ -422,6 +430,11 @@ CNetMatch::OnMessage(uint8 from, uint8 type, CByteReader &body)
 			sInvite.open = false;
 		if(m.reason == MATCH_ABORTED && sMatch.phase != PHASE_NONE && sMatch.start.matchId == m.matchId)
 			LeaveMatch();
+		if(m.reason != MATCH_BUSY){
+			memset(&sScores, 0, sizeof(sScores));
+			sLastFinishedMatch = m.matchId;
+			sHaveFinished = true;
+		}
 		break;
 	}
 	default:

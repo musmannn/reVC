@@ -23,6 +23,7 @@
 static bool sApplyingNetDamage;	// our InflictDamage call for a GMSG_DAMAGE
 static bool sReportedDeath;
 static bool sHaveOverride;
+static uint32 sRespawnCount;	// spreads respawns over the spawn points
 static CVector sOverridePos;
 static float sOverrideHeading;
 
@@ -121,6 +122,8 @@ CNetCombat::OnDamage(uint8 from, const SDamage &msg)
 		return;
 	if(msg.amount <= 0.0f || msg.amount > 1000.0f)
 		return;
+	if(CNetMatch::IsTeammate(from))
+		return;	// no friendly fire, whatever the attacker's game thinks
 	CRemotePlayer *attacker = CRemotePlayer::Get(from);
 	CEntity *by = attacker ? (CEntity*)attacker->m_pPed : nil;
 	sApplyingNetDamage = true;
@@ -220,7 +223,7 @@ CNetCombat::GetRespawnPoint(CVector &pos, float &headingDeg)
 		pos = sOverridePos;
 		heading = sOverrideHeading;
 	}else
-		CSpawnPoints::Pick(CNetGame::MyId(), pos, heading);
+		CSpawnPoints::Pick((uint8)(CNetGame::MyId() + sRespawnCount++), pos, heading);
 	headingDeg = RADTODEG(heading);
 }
 

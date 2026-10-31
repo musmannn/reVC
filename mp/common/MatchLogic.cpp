@@ -103,6 +103,8 @@ CMatchState::OnDeath(uint8_t victim, uint8_t killer, uint32_t time)
 		return;
 	v->deaths++;
 	SMatchPlayer *k = killer != victim ? Find(killer) : nullptr;
+	if(k && k->left)
+		k = nullptr;	// their id may already belong to a newcomer
 	if(killer == MP_PLAYER_NONE || killer == victim)
 		v->score--;			// suicide, fall, drowning...
 	else if(k == nullptr)

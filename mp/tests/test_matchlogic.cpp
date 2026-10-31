@@ -201,3 +201,14 @@ TEST_CASE("match: an empty team ends team deathmatch")
 	CHECK(m.IsOver());
 	CHECK(m.WinnerTeam() == MP_TEAM_RED);	// the team that's still there
 }
+
+TEST_CASE("match: a killer who left is an outsider (ids get reused)")
+{
+	CMatchState m;
+	StartDm(m, 3, 20);
+	m.OnLeft(0);
+	m.OnDeath(1, 0, START + 1);	// a newcomer with id 0
+	CHECK(m.Get(0)->kills == 0);
+	CHECK(m.Get(1)->deaths == 1);
+	CHECK(m.Get(1)->score == 0);
+}

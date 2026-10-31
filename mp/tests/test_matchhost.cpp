@@ -84,11 +84,20 @@ TEST_CASE("match host: team deathmatch assigns teams")
 	CHECK(st.teams[3] == MP_TEAM_BLUE);
 
 	uint32_t t = st.startTime;
-	host.OnDeath(4, 0, t + 1);	// red 0 kills blue 4
 	host.Update(t + 600, &sink);
 	REQUIRE(!sink.scores.empty());
+	CHECK(sink.scores.back().winnerTeam == MP_TEAM_NONE);	// 0-0
+	host.OnDeath(4, 0, t + 1);	// red 0 kills blue 4
+	host.Update(t + 1200, &sink);
 	CHECK(sink.scores.back().teamScore[MP_TEAM_RED] == 1);
 	CHECK(sink.scores.back().teamScore[MP_TEAM_BLUE] == 0);
+	CHECK(sink.scores.back().winnerTeam == MP_TEAM_RED);
+	// Red empties out while ahead: Blue wins by forfeit.
+	host.OnLeft(0);
+	host.OnLeft(2);
+	host.Update(t + 1300, &sink);
+	REQUIRE(sink.ends.size() == 1);
+	CHECK(sink.ends[0].winnerTeam == MP_TEAM_BLUE);
 }
 
 TEST_CASE("match host: not enough players")

@@ -147,4 +147,5 @@ clients: relay + `revc-fakeclient --host --start-match tdm` + several
 - [ ] A player leaving mid-match keeps their score on the board; the last opponent leaving ends it.
 - [ ] Starting a race during a match (or the other way round) says "already on".
 - [ ] Tab outside a match shows the session code and who's in it.
+- [ ] Tab is also the on-foot "action" key in the default controls (pick up / answer phone). Check that holding it for the scoreboard doesn't get in the way; if it does, move the scoreboard to another key.
 - [ ] F2 is blocked while you're in a match.

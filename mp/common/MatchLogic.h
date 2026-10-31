@@ -48,7 +48,7 @@ public:
 
 	void Start(uint8_t mode, const uint8_t *ids, const uint8_t *teams, int n, uint16_t scoreLimit, uint32_t timeLimitMs, uint32_t startTime);
 	// Kill +1. Suicide or no killer: -1 for the victim. Team kill: -1 for the
-	// killer, no kill. A killer outside the match changes no score.
+	// killer, no kill. A killer outside the match (or who left) changes no score.
 	void OnDeath(uint8_t victim, uint8_t killer, uint32_t time);
 	void OnLeft(uint8_t id);
 	void Update(uint32_t now);

@@ -103,6 +103,7 @@ CMatchHost::FillScores(SMatchScores &msg) const
 	msg.matchId = m_matchId;
 	msg.teamScore[MP_TEAM_RED] = m_match.TeamScore(MP_TEAM_RED);
 	msg.teamScore[MP_TEAM_BLUE] = m_match.TeamScore(MP_TEAM_BLUE);
+	msg.winnerTeam = m_match.WinnerTeam();
 	msg.n = (uint8_t)n;
 	for(int i = 0; i < n; i++){
 		const SMatchPlayer *p = m_match.Get(ids[i]);

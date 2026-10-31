@@ -408,10 +408,11 @@ struct SMatchScores
 	uint8_t msgType;
 	uint16_t matchId;
 	int16_t teamScore[2];
+	uint8_t winnerTeam;	// team DM: MP_TEAM_* or MP_TEAM_NONE for a draw (as things stand)
 	uint8_t n;
 	SMatchScoreEntry entries[MP_MAX_PLAYERS];	// standings order
 
-	SMatchScores(void) : msgType(GMSG_MATCH_SCORES), matchId(0), n(0) { teamScore[0] = teamScore[1] = 0; }
+	SMatchScores(void) : msgType(GMSG_MATCH_SCORES), matchId(0), winnerTeam(MP_TEAM_NONE), n(0) { teamScore[0] = teamScore[1] = 0; }
 	void Write(CByteWriter &w) const;
 	bool Read(CByteReader &r);
 };
