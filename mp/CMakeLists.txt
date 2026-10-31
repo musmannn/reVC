@@ -80,6 +80,7 @@ add_library(mpcommon STATIC
 	common/PoseBuffer.cpp
 	common/NetInit.cpp
 	common/NetClient.cpp
+	common/GameProtocol.cpp
 )
 target_include_directories(mpcommon PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/common)
 target_link_libraries(mpcommon PUBLIC enet)
@@ -119,6 +120,7 @@ add_executable(mp_tests
 	tests/test_sessionclock.cpp
 	tests/test_posebuffer.cpp
 	tests/test_relay_integration.cpp
+	tests/test_gameprotocol.cpp
 )
 target_include_directories(mp_tests PRIVATE ${MP_VENDOR_DIR}/doctest)
 target_link_libraries(mp_tests PRIVATE relaycore mpcommon Threads::Threads)
