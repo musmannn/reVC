@@ -253,3 +253,44 @@ TEST_CASE("vehicle ids")
 	// Ids from different owners never collide.
 	CHECK(MpMakeVehicleId(1, 5) != MpMakeVehicleId(2, 5));
 }
+
+TEST_CASE("vehicle ownership transfer")
+{
+	const uint8_t N = MP_PLAYER_NONE;
+	SUBCASE("driver leaves with a passenger in seat 2")
+	{
+		uint8_t seats[MP_MAX_SEATS] = { 3, N, 5, N };
+		CHECK(MpNextVehicleOwner(3, seats, 3) == 5);
+	}
+	SUBCASE("driver stays when a passenger leaves")
+	{
+		uint8_t seats[MP_MAX_SEATS] = { 3, 4, N, N };
+		CHECK(MpNextVehicleOwner(3, seats, 4) == 3);
+	}
+	SUBCASE("lowest seat wins without a driver")
+	{
+		uint8_t seats[MP_MAX_SEATS] = { 1, N, 6, 2 };
+		CHECK(MpNextVehicleOwner(1, seats, 1) == 6);
+	}
+	SUBCASE("empty car")
+	{
+		uint8_t seats[MP_MAX_SEATS] = { N, N, N, N };
+		CHECK(MpNextVehicleOwner(2, seats, 2) == N);
+	}
+	SUBCASE("owner of a parked car leaves")
+	{
+		uint8_t seats[MP_MAX_SEATS] = { N, N, N, N };
+		CHECK(MpNextVehicleOwner(4, seats, 4) == N);
+	}
+	SUBCASE("a non-occupant leaves")
+	{
+		uint8_t seats[MP_MAX_SEATS] = { 3, N, 5, N };
+		CHECK(MpNextVehicleOwner(3, seats, 7) == 3);
+	}
+	SUBCASE("a passenger leaves a car someone else owns")
+	{
+		// The owner is still in the session, so the car stays theirs.
+		uint8_t seats[MP_MAX_SEATS] = { N, 2, N, N };
+		CHECK(MpNextVehicleOwner(0, seats, 2) == 0);
+	}
+}

@@ -8,6 +8,7 @@
 
 class CCivilianPed;
 class CPed;
+class CVehicle;
 
 // Another player in the session, shown as a CCivilianPed puppet with
 // CharCreatedBy = UNK_CHAR: the engine skips its AI and physics, population
@@ -30,6 +31,8 @@ public:
 	bool m_bShownDead;
 	uint8 m_currentWeapon;
 	uint8 m_pendingWeapon;
+	CVehicle *m_pSeatedIn;	// registered reference
+	uint8 m_seat;
 
 	static CRemotePlayer *Get(uint8 id);
 	static void Add(uint8 id, const char *name);
@@ -37,6 +40,8 @@ public:
 	static void Remove(uint8 id);
 	static void RemoveAll(void);
 	static CRemotePlayer *FindByPed(CPed *ped);
+	// Takes every remote player out of vehicle (it's about to be deleted).
+	static void UnseatAllFrom(CVehicle *vehicle);
 
 	void OnState(const SPlayerState &state);
 	void Update(uint32 renderTime);
@@ -52,6 +57,9 @@ private:
 	void Despawn(void);
 	void UpdateAnimation(void);
 	void UpdateWeapon(void);
+	void UpdateSeat(void);
+	void SeatIn(CVehicle *vehicle, uint8 seat);
+	void Unseat(bool placeOutside);
 };
 
 #endif

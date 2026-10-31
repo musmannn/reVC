@@ -55,3 +55,16 @@ sudo tc qdisc add dev lo root netem delay 75ms
 - [ ] A friend's weapon in hand matches what they hold.
 - [ ] Remote ped models (`sDefaultSkins` in `src/multiplayer/RemotePlayer.cpp`) are sensible civilians (placeholder ids).
 - [ ] Peds/traffic AI ignore remote players (no fleeing or fighting), and remote players are never despawned when far away.
+
+## Plan 2, Task 6: vehicles
+
+- [ ] `revc-fakeclient --join CODE --bot drive --at <x,y,z>`: a car drives a smooth 40 m circle with the bot's ped at the wheel (`--model` default 132 is a placeholder).
+- [ ] Two instances: hijack a taxi; the friend sees it appear and drive smoothly.
+- [ ] Press enter next to a friend's car: you warp in as a passenger (you never drag them out); both views match while they drive.
+- [ ] As the passenger, your controls don't steer the friend's car.
+- [ ] Both players try the driver seat of an empty networked car at once: one gets it, the other is put back outside.
+- [ ] Quit the game while driving with a passenger: the passenger keeps the car (it becomes theirs/local) and doesn't fall through the map.
+- [ ] A friend leaves while their parked car is nearby: it disappears unless someone is in it.
+- [ ] Drive at 150 ms latency: no stutter; driving into the friend's car pushes your car.
+- [ ] A friend spawns a vehicle far away / a model you haven't loaded (e.g. a Hunter): it appears once streamed, without a crash.
+- [ ] A friend's car blows up on your screen when it blows up on theirs.

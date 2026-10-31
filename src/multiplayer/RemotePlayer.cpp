@@ -6,6 +6,7 @@
 #include "NetGame.h"
 #include "MpText.h"
 #include "AnimManager.h"
+#include "AnimBlendAssociation.h"
 #include "Camera.h"
 #include "CivilianPed.h"
 #include "Font.h"
@@ -17,6 +18,8 @@
 #include "Streaming.h"
 #include "WeaponInfo.h"
 #include "World.h"
+#include "NetVehicles.h"
+#include "Vehicle.h"
 
 static CRemotePlayer sPlayers[MP_MAX_PLAYERS];
 
@@ -80,6 +83,8 @@ CRemotePlayer::Add(uint8 id, const char *name)
 	p.m_bShownDead = false;
 	p.m_currentWeapon = WEAPONTYPE_UNARMED;
 	p.m_pendingWeapon = WEAPONTYPE_UNARMED;
+	p.m_pSeatedIn = nil;
+	p.m_seat = MP_SEAT_NONE;
 }
 
 void
@@ -178,11 +183,121 @@ CRemotePlayer::Spawn(void)
 }
 
 void
+CRemotePlayer::UnseatAllFrom(CVehicle *vehicle)
+{
+	for(int i = 0; i < MP_MAX_PLAYERS; i++){
+		CRemotePlayer &p = sPlayers[i];
+		if(p.m_bUsed && p.m_pPed && p.m_pPed->bInVehicle && p.m_pPed->m_pMyVehicle == vehicle)
+			p.Unseat(true);
+	}
+}
+
+// Like CREATE_CHAR_INSIDE_CAR / CREATE_CHAR_AS_PASSENGER: remote enter/exit
+// shows as a warp in milestone 1.
+void
+CRemotePlayer::SeatIn(CVehicle *vehicle, uint8 seat)
+{
+	if(seat == MP_SEAT_DRIVER){
+		if(vehicle->pDriver && vehicle->pDriver != m_pPed)
+			return;
+	}else{
+		int idx = seat - 1;
+		if(idx < 0 || idx >= vehicle->m_nNumMaxPassengers || idx >= 3 || vehicle->pPassengers[idx]){
+			// Taken or missing here: any free passenger seat will do visually.
+			idx = -1;
+			for(int i = 0; i < vehicle->m_nNumMaxPassengers && i < 3; i++)
+				if(vehicle->pPassengers[i] == nil){
+					idx = i;
+					break;
+				}
+			if(idx < 0)
+				return;
+		}
+		seat = (uint8)(idx + 1);
+	}
+
+	CPed *ped = m_pPed;
+	ped->SetPedState(PED_DRIVING);
+	if(seat == MP_SEAT_DRIVER){
+		vehicle->pDriver = ped;
+		vehicle->pDriver->RegisterReference((CEntity**)&vehicle->pDriver);
+	}else
+		vehicle->AddPassenger(ped, seat - 1);
+	ped->m_pMyVehicle = vehicle;
+	ped->m_pMyVehicle->RegisterReference((CEntity**)&ped->m_pMyVehicle);
+	ped->bInVehicle = true;
+	ped->bUsesCollision = false;
+	ped->AddInCarAnims(vehicle, seat == MP_SEAT_DRIVER);
+	if(CNetVehicles::IsRemote(vehicle) && vehicle->GetStatus() != STATUS_WRECKED)
+		vehicle->SetStatus(STATUS_PLAYER_DISABLED);
+	m_pSeatedIn = vehicle;
+	m_pSeatedIn->RegisterReference((CEntity**)&m_pSeatedIn);
+	m_seat = seat;
+}
+
+void
+CRemotePlayer::Unseat(bool placeOutside)
+{
+	CPed *ped = m_pPed;
+	CVehicle *vehicle = ped->m_pMyVehicle;
+	if(vehicle){
+		if(vehicle->pDriver == ped){
+			vehicle->RemoveDriver();
+			if(CNetVehicles::IsRemote(vehicle) && vehicle->GetStatus() != STATUS_WRECKED)
+				vehicle->SetStatus(STATUS_PLAYER_DISABLED);
+		}else
+			vehicle->RemovePassenger(ped);
+		ped->m_pMyVehicle->CleanUpOldReference((CEntity**)&ped->m_pMyVehicle);
+	}
+	ped->m_pMyVehicle = nil;
+	ped->RemoveInCarAnims();
+	ped->bInVehicle = false;
+	ped->SetPedState(PED_IDLE);
+	ped->bUsesCollision = true;
+	ped->SetMoveSpeed(0.0f, 0.0f, 0.0f);
+	if(ped->m_pVehicleAnim)
+		ped->m_pVehicleAnim->blendDelta = -1000.0f;
+	ped->m_pVehicleAnim = nil;
+	CAnimManager::BlendAnimation(ped->GetClump(), ped->m_animGroup, ANIM_STD_IDLE, 1000.0f);
+	m_currentAnim = ANIM_STD_IDLE;
+	if(placeOutside && vehicle){
+		CVector pos = vehicle->GetPosition() - vehicle->GetRight() * 2.0f;
+		ped->Teleport(pos);
+	}
+	if(m_pSeatedIn)
+		m_pSeatedIn->CleanUpOldReference((CEntity**)&m_pSeatedIn);
+	m_pSeatedIn = nil;
+	m_seat = MP_SEAT_NONE;
+}
+
+void
+CRemotePlayer::UpdateSeat(void)
+{
+	CVehicle *want = nil;
+	uint8 wantSeat = MP_SEAT_NONE;
+	if((m_last.flags & PSF_IN_VEHICLE) && !(m_last.flags & PSF_DEAD)){
+		want = CNetVehicles::Find(m_last.vehicleId);
+		wantSeat = m_last.seat;
+	}
+	bool seated = m_pPed->bInVehicle;
+	if(seated && m_pSeatedIn == want && (want == nil || wantSeat == m_seat || wantSeat != MP_SEAT_DRIVER))
+		return;
+	if(!seated && want == nil)
+		return;
+	if(seated)
+		Unseat(true);
+	if(want)
+		SeatIn(want, wantSeat);
+}
+
+void
 CRemotePlayer::Despawn(void)
 {
 	if(m_blip >= 0)
 		CRadar::ClearBlip(m_blip);
 	m_blip = -1;
+	if(m_pPed && m_pPed->bInVehicle)
+		Unseat(false);
 	if(m_pPed){
 		CWorld::Remove(m_pPed);
 		delete m_pPed;
@@ -255,6 +370,15 @@ CRemotePlayer::Update(uint32 renderTime)
 		Spawn();
 		if(!m_bSpawned)
 			return;
+	}
+
+	UpdateSeat();
+	m_pPed->m_fHealth = Max(1.0f, (float)m_last.health);
+	m_pPed->m_fArmour = (float)m_last.armour;
+	if(m_pPed->bInVehicle){
+		// The car carries us; CNetVehicles places it first.
+		m_pPed->SetPedPositionInCar();
+		return;
 	}
 
 	SPose pose;

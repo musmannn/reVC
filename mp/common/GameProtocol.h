@@ -65,6 +65,12 @@ inline uint16_t MpMakeVehicleId(uint8_t owner, uint16_t counter) { return (uint1
 inline uint8_t MpVehicleIdOwner(uint16_t id) { return (uint8_t)(id >> 12); }
 inline uint16_t MpVehicleIdCounter(uint16_t id) { return (uint16_t)(id & 0xFFF); }
 
+// Who owns a vehicle after leavingPlayer leaves the session. seats[i] is the
+// player in seat i (0 = driver) or MP_PLAYER_NONE. If the leaver isn't the
+// owner, nothing changes. Otherwise: the remaining driver, else the
+// lowest-seat remaining occupant, else MP_PLAYER_NONE (the car goes local).
+uint8_t MpNextVehicleOwner(uint8_t currentOwner, const uint8_t seats[MP_MAX_SEATS], uint8_t leavingPlayer);
+
 struct SPlayerState
 {
 	uint32_t time;

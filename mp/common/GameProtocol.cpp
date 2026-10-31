@@ -247,3 +247,14 @@ SWorldState::Read(CByteReader &r)
 {
 	return r.ReadU8(hour) && r.ReadU8(minute) && r.ReadU8(weather);
 }
+
+uint8_t
+MpNextVehicleOwner(uint8_t currentOwner, const uint8_t seats[MP_MAX_SEATS], uint8_t leavingPlayer)
+{
+	if(leavingPlayer != currentOwner)
+		return currentOwner;
+	for(int i = 0; i < MP_MAX_SEATS; i++)
+		if(seats[i] != MP_PLAYER_NONE && seats[i] != leavingPlayer)
+			return seats[i];
+	return MP_PLAYER_NONE;
+}
