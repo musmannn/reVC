@@ -80,7 +80,8 @@ public:
 	// Pumps ENet and dispatches callbacks. nowMs is the caller's millisecond
 	// clock; the host's nowMs is the session time.
 	void Service(uint32_t nowMs, INetClientListener *l);
-	// Leaves at once. No callbacks fire.
+	// Leaves at once. No callbacks fire. Host()/Join() may be called again
+	// right after, including from inside a callback.
 	void Leave(void);
 
 	// msg starts with a type >= MSG_GAME_FIRST and is at most MP_MAX_PACKET-2
@@ -94,6 +95,7 @@ public:
 	bool IsActive(void) const { return m_state != STATE_IDLE; }
 	bool IsInSession(void) const { return m_state == STATE_IN_SESSION; }
 	bool IsHost(void) const { return m_state == STATE_IN_SESSION && m_isHost; }
+	// MyId() and Code() keep the last session's values after it ends.
 	uint8_t MyId(void) const { return m_myId; }
 	const char *Code(void) const { return m_code; }
 	const CSessionClock &Clock(void) const { return m_clock; }

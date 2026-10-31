@@ -21,10 +21,11 @@ FilterText(char *s)
 static void
 CopyString(char *dst, const char *src, uint32_t dstSize)
 {
-	if(src == nullptr)
-		src = "";
-	strncpy(dst, src, dstSize - 1);
-	dst[dstSize - 1] = '\0';
+	uint32_t i = 0;
+	if(src)
+		for(; i + 1 < dstSize && src[i]; i++)
+			dst[i] = src[i];
+	dst[i] = '\0';
 }
 
 CNetClient::CNetClient(void)
@@ -61,11 +62,15 @@ CNetClient::Connect(const char *relayAddr, uint16_t port)
 		Close(false);
 		return false;
 	}
+	m_host->maximumPacketSize = 2048;
+	m_host->maximumWaitingData = 256 * 1024;
 	m_peer = enet_host_connect(m_host, &addr, MP_NUM_CHANNELS, 0);
 	if(m_peer == nullptr){
 		Close(false);
 		return false;
 	}
+	// Notice a dead relay within 15 s, like the relay notices a dead client.
+	enet_peer_timeout(m_peer, 0, 5000, 15000);
 	m_state = STATE_CONNECTING;
 	m_isHost = false;
 	m_myId = MP_PLAYER_NONE;
@@ -192,10 +197,13 @@ CNetClient::Service(uint32_t nowMs, INetClientListener *l)
 		m_haveStartTime = true;
 	}
 
+	// A callback may Leave() and then Host()/Join() again. If so, stop: the
+	// new connection gets its own start time on the next Service().
+	_ENetHost *host = m_host;
 	ENetEvent ev;
 	for(;;){
-		if(m_host == nullptr)
-			break;
+		if(m_host != host || m_host == nullptr)
+			return;
 		int r = enet_host_service(m_host, &ev, 0);
 		// r < 0 is a socket error (e.g. an ICMP "port unreachable" on
 		// Windows); the connect timeout below covers it.
@@ -230,7 +238,7 @@ CNetClient::Service(uint32_t nowMs, INetClientListener *l)
 		default:
 			break;
 		}
-		if(m_state == STATE_IDLE)
+		if(m_state == STATE_IDLE || m_host != host)
 			return;
 	}
 

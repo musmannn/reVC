@@ -20,6 +20,7 @@ struct SRelayConfig
 	uint32_t maxSessions = 256;
 	uint32_t maxPacketsPerSecond = 200;
 	const char *bindAddress = nullptr;	// nullptr = all interfaces
+	uint32_t maxPeersPerAddress = 16;	// connections from one IP (households share one)
 };
 
 class CRelayServer

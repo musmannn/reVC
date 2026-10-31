@@ -18,6 +18,13 @@ static const uint32_t HELLO_TIMEOUT_MS = 10000;
 static const uint32_t WARN_INTERVAL_MS = 10000;
 // How long Stop() keeps servicing so the goodbye messages get delivered.
 static const uint32_t STOP_DRAIN_MS = 250;
+// ENet-level size limits. Slightly above MP_MAX_PACKET so oversized packets
+// still reach OnReceive and get logged; anything bigger is dropped by ENet.
+static const uint32_t MP_RELAY_MAX_ENET_PACKET = 2048;
+static const uint32_t MP_RELAY_MAX_WAITING_DATA = 64 * 1024;
+// At most this many events per Service() call, so a flood can't starve the
+// caller's loop (housekeeping, Ctrl+C).
+static const uint32_t MAX_EVENTS_PER_SERVICE = 4096;
 // Peer timeouts: a crashed host is noticed within ENET_TIMEOUT_MAX_MS.
 static const uint32_t ENET_TIMEOUT_MIN_MS = 5000;
 static const uint32_t ENET_TIMEOUT_MAX_MS = 15000;
@@ -102,6 +109,12 @@ CRelayServer::Start(const SRelayConfig &config)
 		return false;
 	}
 
+	// Don't let ENet buffer more than we'd ever accept: by default it would
+	// reassemble packets up to 32 MB per peer. Also cap connections per IP.
+	m_host->maximumPacketSize = MP_RELAY_MAX_ENET_PACKET;
+	m_host->maximumWaitingData = MP_RELAY_MAX_WAITING_DATA;
+	m_host->duplicatePeers = m_config.maxPeersPerAddress ? m_config.maxPeersPerAddress : 1;
+
 	m_peers.assign(m_host->peerCount, SRelayPeer());
 	for(size_t i = 0; i < m_peers.size(); i++){
 		memset(&m_peers[i], 0, sizeof(SRelayPeer));
@@ -130,7 +143,8 @@ CRelayServer::Service(uint32_t timeoutMs)
 		return;
 	ENetEvent ev;
 	uint32_t wait = timeoutMs;
-	while(m_host && enet_host_service(m_host, &ev, wait) > 0){
+	uint32_t events = 0;
+	while(m_host && events++ < MAX_EVENTS_PER_SERVICE && enet_host_service(m_host, &ev, wait) > 0){
 		wait = 0;
 		switch(ev.type){
 		case ENET_EVENT_TYPE_CONNECT:
@@ -284,12 +298,18 @@ CRelayServer::OnReceive(ENetPeer *peer, uint8_t channel, ENetPacket *packet)
 		p.windowStartMs = now;
 		p.windowPackets = 0;
 	}
-	if(++p.windowPackets > m_config.maxPacketsPerSecond){
-		Warn(peer, "packet rate limit exceeded");
-		return;
-	}
-	if(packet->dataLength > MP_MAX_PACKET){
-		Warn(peer, "oversized packet");
+	const char *problem = nullptr;
+	if(++p.windowPackets > m_config.maxPacketsPerSecond)
+		problem = "packet rate limit exceeded";
+	else if(packet->dataLength > MP_MAX_PACKET)
+		problem = "oversized packet";
+	if(problem){
+		Warn(peer, problem);
+		// Before create/join, anything unexpected closes the connection.
+		if(p.state == PEER_HELLO){
+			p.state = PEER_CLOSING;
+			enet_peer_disconnect(peer, 0);
+		}
 		return;
 	}
 

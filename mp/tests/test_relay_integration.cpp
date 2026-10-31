@@ -587,7 +587,7 @@ TEST_CASE("relay: rate limit")
 	CHarness h(50);
 	SNode &host = h.HostNode();
 	SNode &c1 = h.JoinNode(host.rec.code, "Lance");
-	h.PumpFor(1100);	// start a fresh rate window for c1
+	h.PumpFor(1100);	// let the joins' packets age out of c1's window
 	for(int i = 0; i < 120; i++)
 		SendGameMsg(c1.client, MP_ROUTE_HOST, 0, 64);
 	h.PumpFor(500);
@@ -634,4 +634,52 @@ TEST_CASE("relay: unreachable relay times out")
 	CHECK(n.rec.joinFailed == JOIN_NOT_FOUND);
 	CHECK(NowMs() - start >= 4900);
 	CHECK(!n.client.IsInSession());
+}
+
+// Re-hosts from inside OnSessionEnded, like a game "host again" button might.
+class CRehostRecorder : public CRecorder
+{
+public:
+	CNetClient *client = nullptr;
+	uint16_t port = 0;
+	bool rehosted = false;
+	void OnSessionEnded(eEndReason r) override
+	{
+		CRecorder::OnSessionEnded(r);
+		ready = false;
+		code.clear();
+		rehosted = client->Host("127.0.0.1", port, "Again");
+	}
+};
+
+TEST_CASE("relay: host again from inside a callback")
+{
+	CHarness h;
+	SNode &host = h.HostNode();
+	CNetClient c1;
+	CRehostRecorder rec;
+	rec.client = &c1;
+	rec.port = h.port;
+	REQUIRE(c1.Join("127.0.0.1", h.port, host.rec.code.c_str(), "Lance"));
+	REQUIRE(h.Pump([&](){ c1.Service(NowMs(), &rec); return rec.ready; }));
+	h.Pump([&](){ c1.Service(NowMs(), &rec); return false; }, 5200);	// older than the connect timeout
+	host.client.Leave();
+	REQUIRE(h.Pump([&](){ c1.Service(NowMs(), &rec); return rec.ready || rec.joinFailed >= 0; }));
+	CHECK(rec.rehosted);
+	CHECK(rec.joinFailed == -1);
+	CHECK(rec.ready);
+	CHECK(rec.isHost);
+	CHECK(IsCodeShape(rec.code));
+}
+
+TEST_CASE("relay: oversized first packet closes the connection")
+{
+	CHarness h;
+	CRawPeer raw;
+	h.raws.push_back(&raw);
+	raw.Connect(h.port);
+	REQUIRE(h.Pump([&](){ return raw.connected; }));
+	std::vector<uint8_t> big(1500, 0);
+	raw.Send(big.data(), big.size());
+	CHECK(h.Pump([&](){ return raw.disconnected; }));
 }
