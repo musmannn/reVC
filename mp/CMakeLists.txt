@@ -73,6 +73,8 @@ endfunction()
 # --- mpcommon: engine-free protocol/session code, no reVC headers ------------
 add_library(mpcommon STATIC
 	common/MpTypes.cpp
+	common/ByteStream.cpp
+	common/Protocol.cpp
 )
 target_include_directories(mpcommon PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/common)
 target_link_libraries(mpcommon PUBLIC enet)
@@ -84,6 +86,8 @@ mp_target_settings(mpcommon)
 # --- Tests --------------------------------------------------------------------
 add_executable(mp_tests
 	tests/test_main.cpp
+	tests/test_bytestream.cpp
+	tests/test_protocol.cpp
 )
 target_include_directories(mp_tests PRIVATE ${MP_VENDOR_DIR}/doctest)
 target_link_libraries(mp_tests PRIVATE mpcommon)
