@@ -2,15 +2,18 @@
 
 #ifdef MULTIPLAYER
 
-// Chat commands for authoring race routes in-game. Lines starting with '/'
-// are local commands and are never sent:
-//   /rec new NAME, /rec type sprint|circuit, /rec laps N, /rec vehicle,
-//   /rec grid, /rec cp [radius], /rec undo, /rec save, /pos
+// The in-game route and arena editor: chat commands (lines starting with '/'
+// are local and never sent) on top of CRouteEditor (mp/common), plus markers
+// for the route being edited. /rec help lists the commands; /pos prints where
+// you are.
 class CRouteRecorder
 {
 public:
 	// Returns true if text was a command (handled here, not chat).
 	static bool OnCommand(const char *text);
+	// Per frame while not paused: preview markers for the route being edited.
+	static void Process(void);
+	static bool IsEditing(void);
 };
 
 #endif

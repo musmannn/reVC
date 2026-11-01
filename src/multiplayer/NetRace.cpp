@@ -137,30 +137,60 @@ MpReadTextFile(const char *path, char *buf, int size)
 	return len;
 }
 
+// dir is "races" or "arenas" under data/mp.
 static bool
-LoadRouteFile(const char *file, SRaceRoute &route)
+LoadRouteFile(const char *dir, const char *file, SRaceRoute &route, bool arena)
 {
 	static char text[64 * 1024];
 	char path[128];
-	snprintf(path, sizeof(path), "data\\mp\\races\\%s", file);
+	snprintf(path, sizeof(path), "data\\mp\\%s\\%s", dir, file);
 	if(MpReadTextFile(path, text, sizeof(text)) < 0){
-		re3_debug("[MP] race route %s: can't read it\n", file);
+		re3_debug("[MP] %s/%s: can't read it\n", dir, file);
 		return false;
 	}
 	char err[128];
 	if(!MpParseRoute(text, route, err, sizeof(err))){
-		re3_debug("[MP] race route %s skipped: %s\n", file, err);
+		re3_debug("[MP] %s/%s skipped: %s\n", dir, file, err);
 		return false;
 	}
-	if(route.type == RACE_ARENA){
-		re3_debug("[MP] race route %s skipped: it's an arena\n", file);
+	if((route.type == RACE_ARENA) != arena){
+		re3_debug("[MP] %s/%s skipped: %s\n", dir, file, arena ? "not an arena" : "it's an arena");
 		return false;
 	}
-	if(!CNetRace::IsLandVehicle(route.vehicleModel)){
-		re3_debug("[MP] race route %s skipped: vehicle %d isn't a car or bike\n", file, (int)route.vehicleModel);
+	if(route.vehicleModel != 0 && !CNetRace::IsLandVehicle(route.vehicleModel)){
+		re3_debug("[MP] %s/%s skipped: vehicle %d isn't a car or bike\n", dir, file, (int)route.vehicleModel);
 		return false;
 	}
 	return true;
+}
+
+int
+CNetRace::LoadRouteDir(const char *dir, SRaceRoute *out, int max, bool arenas)
+{
+	int n = 0;
+	CFileMgr::SetDir("");
+	static char index[8 * 1024];
+	char path[64];
+	snprintf(path, sizeof(path), "data\\mp\\%s\\index.txt", dir);
+	if(MpReadTextFile(path, index, sizeof(index)) <= 0){
+		re3_debug("[MP] nothing in data/mp/%s (index.txt)\n", dir);
+		return 0;
+	}
+	// Not strtok: LoadRouteFile is free to use it.
+	for(char *p = index; *p && n < max; ){
+		char *line = p;
+		while(*p && *p != '\r' && *p != '\n')
+			p++;
+		if(*p)
+			*p++ = '\0';
+		while(*line == ' ' || *line == '\t')
+			line++;
+		if(*line == '\0' || *line == '#')
+			continue;
+		if(LoadRouteFile(dir, line, out[n], arenas))
+			n++;
+	}
+	return n;
 }
 
 // Only land vehicles the engine knows; a bad id would crash every racer.
@@ -187,22 +217,7 @@ RouteLabel(int i)
 void
 CNetRace::Init(void)
 {
-	sNumRoutes = 0;
-	CFileMgr::SetDir("");
-	static char index[8 * 1024];
-	int n = MpReadTextFile("data\\mp\\races\\index.txt", index, sizeof(index));
-	if(n > 0){
-		char *line = strtok(index, "\r\n");
-		for(; line && sNumRoutes < MAX_ROUTES; line = strtok(nil, "\r\n")){
-			while(*line == ' ' || *line == '\t')
-				line++;
-			if(*line == '\0' || *line == '#')
-				continue;
-			if(LoadRouteFile(line, sRoutes[sNumRoutes]))
-				sNumRoutes++;
-		}
-	}else
-		re3_debug("[MP] no race routes (data/mp/races/index.txt)\n");
+	sNumRoutes = LoadRouteDir("races", sRoutes, MAX_ROUTES, false);
 	if(!sMenuRegistered){
 		CFreeroamMenu::AddList("Start race >", RouteCount, RouteLabel, RequestRace);
 		sMenuRegistered = true;

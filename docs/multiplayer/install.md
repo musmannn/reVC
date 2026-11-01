@@ -11,7 +11,7 @@ multiplayer tools; no Rockstar assets.
 2. Extract this package **over** that folder and say yes to replacing files.
    That adds the reVC executable plus reVC's own `data`, `TEXT`, `models` and
    `neo` additions (including `data/freeroam_miami.scm` for multiplayer and
-   `data/mp/races/`).
+   `data/mp/races/` and `data/mp/arenas/`).
 3. Start the reVC executable from that folder:
    - **Windows:** `reVC.exe`. Both builds are included; `d3d9` is usually the
      better choice on Windows, `gl3` uses OpenGL.
@@ -22,7 +22,7 @@ multiplayer tools; no Rockstar assets.
      right-click → Open, or run `xattr -dr com.apple.quarantine reVC.app`. If it
      complains about missing libraries: `brew install glfw openal-soft mpg123`.
      Still extract the rest of the package over the game folder so
-     `data/mp/races/` is there for the race recorder.
+     `data/mp/races/` and `data/mp/arenas/` are there for the route editor.
 
 Single player works as before: New Game from the main menu.
 

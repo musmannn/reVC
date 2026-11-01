@@ -47,6 +47,27 @@ public:
 static CMatchHost sHost;
 static CGameMatchSink sSink;
 
+static SRaceRoute sArenas[CNetMatch::MAX_ARENAS];
+static int sNumArenas;
+
+void
+CNetMatch::LoadArenas(void)
+{
+	sNumArenas = CNetRace::LoadRouteDir("arenas", sArenas, MAX_ARENAS, true);
+}
+
+int
+CNetMatch::NumArenas(void)
+{
+	return sNumArenas;
+}
+
+const SRaceRoute*
+CNetMatch::GetArena(int i)
+{
+	return i >= 0 && i < sNumArenas ? &sArenas[i] : nil;
+}
+
 struct SMatchInviteState
 {
 	bool open;
@@ -122,6 +143,7 @@ CNetMatch::RequestMatch(int mode)
 void
 CNetMatch::Init(void)
 {
+	LoadArenas();
 	if(!sMenuRegistered){
 		CFreeroamMenu::AddList("Start match >", ModeCount, ModeLabel, RequestMatch);
 		sMenuRegistered = true;

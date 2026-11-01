@@ -35,6 +35,8 @@ public:
 	// (a loaded file or the route editor's unsaved one).
 	static void RequestRoute(const SRaceRoute &route);
 	static bool IsLandVehicle(int32 model);
+	// Loads data/mp/<dir>/*.route listed in its index.txt: races, or arenas.
+	static int LoadRouteDir(const char *dir, SRaceRoute *out, int max, bool arenas);
 };
 
 // Reads a small text file (bounded, NUL-terminated). Returns length or -1.

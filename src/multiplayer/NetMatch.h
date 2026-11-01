@@ -34,6 +34,12 @@ public:
 	// Respawn while playing: match loadout instead of free roam's.
 	static void GiveMatchLoadout(CPlayerPed *player);
 	static void RequestMatch(int mode);
+
+	enum { MAX_ARENAS = 16 };
+	// data/mp/arenas/*.route (type arena), listed in its index.txt.
+	static void LoadArenas(void);
+	static int NumArenas(void);
+	static const SRaceRoute *GetArena(int i);
 };
 
 #endif

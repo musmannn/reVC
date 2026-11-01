@@ -14,6 +14,7 @@
 #include "FreeroamMenu.h"
 #include "NetRace.h"
 #include "NetMatch.h"
+#include "RouteRecorder.h"
 #include "GameProtocol.h"
 #include "Frontend.h"
 #include "Messages.h"
@@ -399,6 +400,7 @@ CNetGame::Process(void)
 	CNetCombat::Update();
 	CNetRace::Process();
 	CNetMatch::Process();
+	CRouteRecorder::Process();
 	if(now - sLastStateSentMs >= 1000 / MP_SNAPSHOT_HZ){
 		sLastStateSentMs = now;
 		SendLocalState();
