@@ -485,6 +485,12 @@ CRelayServer::HandleCreate(ENetPeer *peer, const uint8_t *body, uint32_t size)
 		RejectJoin(peer, JOIN_BAD_NAME);
 		return;
 	}
+	if(!r.ReadU8(msg.flags)){
+		Warn(peer, "malformed create");
+		p.state = PEER_CLOSING;
+		enet_peer_disconnect(peer, 0);
+		return;
+	}
 
 	int32_t index = -1;
 	for(size_t i = 0; i < m_sessions.size(); i++)
@@ -517,6 +523,7 @@ CRelayServer::HandleCreate(ENetPeer *peer, const uint8_t *body, uint32_t size)
 	s.members[0] = peer;
 	strcpy(s.names[0], name);
 	s.numMembers = 1;
+	s.flags = msg.flags & MP_SESSION_DEDICATED;	// unknown bits are dropped
 	m_numSessions++;
 
 	p.state = PEER_IN_SESSION;
@@ -529,7 +536,7 @@ CRelayServer::HandleCreate(ENetPeer *peer, const uint8_t *body, uint32_t size)
 	CByteWriter w;
 	created.Write(w);
 	SendFromRelay(peer, w);
-	MpRelayLog("create %s: host '%s' from %s (%u sessions)", code, name, p.addr, (unsigned)m_numSessions);
+	MpRelayLog("create %s: %s '%s' from %s (%u sessions)", code, (s.flags & MP_SESSION_DEDICATED) ? "server" : "host", name, p.addr, (unsigned)m_numSessions);
 }
 
 void
@@ -613,6 +620,7 @@ CRelayServer::HandleJoin(ENetPeer *peer, const uint8_t *body, uint32_t size)
 	SMsgJoinResult res;
 	res.result = JOIN_OK;
 	res.playerId = id;
+	res.flags = s.flags;
 	CByteWriter w;
 	res.Write(w);
 	SendFromRelay(peer, w);

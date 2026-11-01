@@ -45,6 +45,8 @@ public:
 	// Connecting, or in a session (world loaded or not).
 	static bool IsConnected(void);
 	static bool IsHost(void);
+	// The session is hosted by revc-server: id 0 is the server, not a player.
+	static bool IsDedicated(void);
 	static uint8 MyId(void);
 	static CNetClient &Client(void);
 	// Session time now (the host's clock).
@@ -56,7 +58,8 @@ public:
 	static bool JoinSession(const char *code);
 	static void LeaveSession(void);
 	static const char *InviteCode(void);
-	static int NumPlayers(void);
+	static int NumPlayers(void);	// people: a dedicated server isn't counted
+	static int MaxPlayers(void);
 	static const char *PlayerName(uint8 id);	// nil if no such player
 	// MP_* key of the last failure/end reason, or nil. Cleared by Host/Join.
 	static const char *LastStatusKey(void);

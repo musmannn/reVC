@@ -40,9 +40,11 @@ TEST_CASE("protocol round trip")
 		SMsgCreateSession in, out;
 		in.version = MP_PROTOCOL_VERSION;
 		strcpy(in.name, "Tommy");
+		in.flags = MP_SESSION_DEDICATED;
 		CHECK(RoundTrip(in, MSG_CREATE_SESSION, out));
 		CHECK(out.version == MP_PROTOCOL_VERSION);
 		CHECK(strcmp(out.name, "Tommy") == 0);
+		CHECK(out.flags == MP_SESSION_DEDICATED);
 	}
 	SUBCASE("session created")
 	{
@@ -72,6 +74,12 @@ TEST_CASE("protocol round trip")
 		CHECK(RoundTrip(in, MSG_JOIN_RESULT, out));
 		CHECK(out.result == JOIN_FULL);
 		CHECK(out.playerId == MP_PLAYER_NONE);
+		CHECK(out.flags == 0);
+		in.result = JOIN_OK;
+		in.playerId = 2;
+		in.flags = MP_SESSION_DEDICATED;
+		CHECK(RoundTrip(in, MSG_JOIN_RESULT, out));
+		CHECK(out.flags == MP_SESSION_DEDICATED);
 	}
 	SUBCASE("player joined")
 	{

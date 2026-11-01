@@ -605,13 +605,13 @@ CNetMatch::RenderScoreboard(void)
 	char line[64];
 	SetupFont(0.65f, 1.15f, FONT_HEADING);
 	CFont::SetColor(CRGBA(255, 200, 40, 255));
-	snprintf(line, sizeof(line), "%s  %d/%d", CNetGame::InviteCode(), n, (int)MP_MAX_PLAYERS);
+	snprintf(line, sizeof(line), "%s  %d/%d", CNetGame::InviteCode(), n, CNetGame::MaxPlayers());
 	CFont::PrintString(x, y, MpWideString(line));
 	y += lh * 1.4f;
 	SetupFont(0.5f, 0.9f, FONT_STANDARD);
 	for(int id = 0; id < MP_MAX_PLAYERS; id++){
 		const char *name = CNetGame::PlayerName((uint8)id);
-		if(name == nil)
+		if(name == nil || (id == 0 && CNetGame::IsDedicated()))
 			continue;
 		snprintf(line, sizeof(line), "%s%s%s", name, id == 0 ? "  (host)" : "", id == CNetGame::MyId() ? "  (you)" : "");
 		CFont::SetColor(CRemotePlayer::ColourForId((uint8)id));

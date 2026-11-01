@@ -31,6 +31,10 @@ public:
 	static const SRaceRoute *GetRoute(int i);
 	static const SRaceRoute *FindRoute(const char *name);
 	static void RequestRace(int routeIndex);
+	// Asks the host for a race on route, which travels with the request
+	// (a loaded file or the route editor's unsaved one).
+	static void RequestRoute(const SRaceRoute &route);
+	static bool IsLandVehicle(int32 model);
 };
 
 // Reads a small text file (bounded, NUL-terminated). Returns length or -1.

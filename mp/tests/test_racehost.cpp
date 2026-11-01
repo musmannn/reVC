@@ -48,7 +48,8 @@ TEST_CASE("race host: full race")
 	uint16_t raceId = sink.invites[0].raceId;
 	CHECK(sink.invites[0].startedBy == 1);
 	CHECK(sink.invites[0].deadline == 1000 + CRaceHost::INVITE_MS);
-	CHECK(strcmp(sink.invites[0].route, "Test Sprint") == 0);
+	CHECK(strcmp(sink.invites[0].route.name, "Test Sprint") == 0);
+	CHECK(sink.invites[0].route.numCheckpoints == route.numCheckpoints);
 
 	host.OnAccept(2, raceId, 5000);
 	host.OnAccept(3, raceId + 1, 5000);	// stale race id: ignored

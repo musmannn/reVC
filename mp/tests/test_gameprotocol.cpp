@@ -295,27 +295,153 @@ TEST_CASE("vehicle ownership transfer")
 	}
 }
 
+static SRaceRoute
+SampleRoute(uint8_t type = RACE_SPRINT, int nGrid = 2, int nCp = 3)
+{
+	SRaceRoute r;
+	memset(&r, 0, sizeof(r));
+	strcpy(r.name, type == RACE_ARENA ? "Beach Arena" : "Ocean Drive Sprint");
+	r.type = type;
+	r.laps = type == RACE_CIRCUIT ? 3 : 1;
+	r.vehicleModel = type == RACE_ARENA ? 0 : 141;
+	r.numGrid = (uint8_t)nGrid;
+	for(int i = 0; i < nGrid; i++){
+		r.grid[i].pos[0] = 100.0f + i * 3.125f;
+		r.grid[i].pos[1] = -1200.5f;
+		r.grid[i].pos[2] = 10.25f;
+		r.grid[i].heading = 90.0f + i;
+	}
+	r.numCheckpoints = (uint8_t)nCp;
+	for(int i = 0; i < nCp; i++){
+		r.cps[i].pos[0] = -2000.0f + i * 50.0f;
+		r.cps[i].pos[1] = 1500.875f;
+		r.cps[i].pos[2] = 12.0f;
+		r.cps[i].radius = 8.0f + i * 0.5f;
+	}
+	return r;
+}
+
+static void
+CheckSameRoute(const SRaceRoute &a, const SRaceRoute &b)
+{
+	CHECK(strcmp(a.name, b.name) == 0);
+	CHECK(a.type == b.type);
+	CHECK(a.laps == b.laps);
+	CHECK(a.vehicleModel == b.vehicleModel);
+	REQUIRE(a.numGrid == b.numGrid);
+	REQUIRE(a.numCheckpoints == b.numCheckpoints);
+	for(int i = 0; i < a.numGrid; i++){
+		for(int k = 0; k < 3; k++)
+			CHECK(b.grid[i].pos[k] == doctest::Approx(a.grid[i].pos[k]).epsilon(0.0001));
+		CHECK(b.grid[i].heading == doctest::Approx(a.grid[i].heading).epsilon(0.001));
+	}
+	for(int i = 0; i < a.numCheckpoints; i++){
+		for(int k = 0; k < 3; k++)
+			CHECK(b.cps[i].pos[k] == doctest::Approx(a.cps[i].pos[k]).epsilon(0.0001));
+		CHECK(b.cps[i].radius == doctest::Approx(a.cps[i].radius));
+	}
+}
+
+TEST_CASE("route data on the wire")
+{
+	SUBCASE("round trip, every type")
+	{
+		for(uint8_t type = RACE_SPRINT; type <= RACE_ARENA; type++){
+			SRaceRoute in = SampleRoute(type), out;
+			CByteWriter w;
+			MpWriteRouteData(w, in);
+			CByteReader r(w.Data(), w.Size());
+			REQUIRE(MpReadRouteData(r, out));
+			CheckSameRoute(in, out);
+			CHECK(r.Remaining() == 0);
+		}
+	}
+	SUBCASE("a full route fits a packet with room to spare")
+	{
+		SRaceRoute in = SampleRoute(RACE_CIRCUIT, MP_MAX_PLAYERS, MP_MAX_CHECKPOINTS);
+		SRaceInvite invite;
+		invite.route = in;
+		CByteWriter w;
+		invite.Write(w);
+		CHECK(w.Size() <= 600);
+		CHECK(w.Size() + 2 <= MP_MAX_PACKET);
+		SRaceInvite out;
+		CByteReader r(w.Data() + 1, w.Size() - 1);
+		REQUIRE(out.Read(r));
+		CheckSameRoute(in, out.route);
+	}
+	SUBCASE("quantized: 1/8 m positions, 1/2 m radii, headings wrap")
+	{
+		SRaceRoute in = SampleRoute();
+		in.grid[0].pos[0] = 1.06f;	// -> 1.0
+		in.grid[0].heading = -90.0f;	// -> 270
+		in.cps[0].radius = 7.8f;	// -> 8.0
+		CByteWriter w;
+		MpWriteRouteData(w, in);
+		SRaceRoute out;
+		CByteReader r(w.Data(), w.Size());
+		REQUIRE(MpReadRouteData(r, out));
+		CHECK(out.grid[0].pos[0] == doctest::Approx(1.0f));
+		CHECK(out.grid[0].heading == doctest::Approx(270.0f));
+		CHECK(out.cps[0].radius == doctest::Approx(8.0f));
+	}
+	SUBCASE("invalid routes are refused")
+	{
+		SRaceRoute bad = SampleRoute(RACE_SPRINT, 1, 1);	// one checkpoint
+		CByteWriter w;
+		MpWriteRouteData(w, bad);
+		SRaceRoute out;
+		CByteReader r(w.Data(), w.Size());
+		CHECK(!MpReadRouteData(r, out));
+
+		CByteWriter w2;
+		SRaceRoute noName = SampleRoute();
+		noName.name[0] = '\0';
+		MpWriteRouteData(w2, noName);
+		CByteReader r2(w2.Data(), w2.Size());
+		CHECK(!MpReadRouteData(r2, out));
+	}
+	SUBCASE("too many grid slots or checkpoints in the counts")
+	{
+		CByteWriter w;
+		w.WriteString("X", MP_MAX_ROUTE_NAME);
+		w.WriteU8(RACE_SPRINT);
+		w.WriteU8(1);
+		w.WriteU16(141);
+		w.WriteU8(MP_MAX_PLAYERS + 1);
+		SRaceRoute out;
+		CByteReader r(w.Data(), w.Size());
+		CHECK(!MpReadRouteData(r, out));
+	}
+}
+
 TEST_CASE("race messages round trip")
 {
 	SUBCASE("request")
 	{
 		SRaceRequest in, out;
-		strcpy(in.route, "Ocean Drive Sprint");
+		in.route = SampleRoute();
 		REQUIRE(RoundTrip(in, GMSG_RACE_REQUEST, out));
-		CHECK(strcmp(out.route, "Ocean Drive Sprint") == 0);
+		CheckSameRoute(in.route, out.route);
 		CheckAllPrefixesFail(in);
+	}
+	SUBCASE("a request for an arena isn't a race")
+	{
+		SRaceRequest in, out;
+		in.route = SampleRoute(RACE_ARENA);
+		CHECK(!RoundTrip(in, GMSG_RACE_REQUEST, out));
 	}
 	SUBCASE("invite")
 	{
 		SRaceInvite in, out;
 		in.raceId = 7;
 		in.startedBy = 3;
-		strcpy(in.route, "Starfish Loop");
+		in.route = SampleRoute(RACE_CIRCUIT);
 		in.deadline = 0xABCDEF01;
 		REQUIRE(RoundTrip(in, GMSG_RACE_INVITE, out));
 		CHECK(out.raceId == 7);
 		CHECK(out.startedBy == 3);
-		CHECK(strcmp(out.route, "Starfish Loop") == 0);
+		CheckSameRoute(in.route, out.route);
 		CHECK(out.deadline == 0xABCDEF01);
 		CheckAllPrefixesFail(in);
 	}
@@ -415,6 +541,39 @@ TEST_CASE("match messages round trip")
 		in.mode = MATCH_TDM;
 		REQUIRE(RoundTrip(in, GMSG_MATCH_REQUEST, out));
 		CHECK(out.mode == MATCH_TDM);
+		CHECK(!out.hasArena);
+		CheckAllPrefixesFail(in);
+	}
+	SUBCASE("request with an arena")
+	{
+		SMatchRequest in, out;
+		in.mode = MATCH_KOTH;
+		in.hasArena = true;
+		in.arena = SampleRoute(RACE_ARENA, 4, 3);
+		REQUIRE(RoundTrip(in, GMSG_MATCH_REQUEST, out));
+		CHECK(out.mode == MATCH_KOTH);
+		REQUIRE(out.hasArena);
+		CheckSameRoute(in.arena, out.arena);
+		CheckAllPrefixesFail(in);
+		// A race route isn't an arena.
+		in.arena = SampleRoute(RACE_SPRINT);
+		CHECK(!RoundTrip(in, GMSG_MATCH_REQUEST, out));
+	}
+	SUBCASE("stunt")
+	{
+		SStunt in, out;
+		in.matchId = 12;
+		in.points = 1500;
+		in.airMs = 2300;
+		in.flips = 2;
+		in.spins = 1;
+		REQUIRE(RoundTrip(in, GMSG_STUNT, out));
+		CHECK(out.matchId == 12);
+		CHECK(out.points == 1500);
+		CHECK(out.airMs == 2300);
+		CHECK(out.flips == 2);
+		CHECK(out.spins == 1);
+		CheckAllPrefixesFail(in);
 	}
 	SUBCASE("invite")
 	{
@@ -425,7 +584,11 @@ TEST_CASE("match messages round trip")
 		in.scoreLimit = 20;
 		in.timeLimitMs = 600000;
 		in.deadline = 0xFFFFFF00u;
+		in.hasArena = true;
+		in.arena = SampleRoute(RACE_ARENA);
 		REQUIRE(RoundTrip(in, GMSG_MATCH_INVITE, out));
+		REQUIRE(out.hasArena);
+		CheckSameRoute(in.arena, out.arena);
 		CHECK(out.matchId == 4);
 		CHECK(out.mode == MATCH_DM);
 		CHECK(out.startedBy == 2);
@@ -504,5 +667,7 @@ TEST_CASE("match messages round trip")
 		CHECK(out.reason == MATCH_NOT_ENOUGH);
 	}
 	CHECK((int)GMSG_RACE_LAST < (int)GMSG_MATCH_FIRST);
-	CHECK((int)GMSG_MATCH_CANCEL <= (int)GMSG_LAST);
+	CHECK((int)GMSG_MATCH_CANCEL <= (int)GMSG_MATCH_LAST);
+	CHECK((int)GMSG_STUNT <= (int)GMSG_MATCH_LAST);
+	CHECK((int)GMSG_MATCH_LAST <= (int)GMSG_LAST);
 }

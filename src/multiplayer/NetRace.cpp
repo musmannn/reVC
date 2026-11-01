@@ -67,7 +67,7 @@ struct SInviteState
 	bool accepted;
 	uint16 raceId;
 	uint8 startedBy;
-	char route[MP_MAX_ROUTE_NAME + 1];
+	SRaceRoute route;	// sent with the invite: no file needed
 	uint32 deadline;
 };
 static SInviteState sInvite;
@@ -152,15 +152,24 @@ LoadRouteFile(const char *file, SRaceRoute &route)
 		re3_debug("[MP] race route %s skipped: %s\n", file, err);
 		return false;
 	}
-	// 3. Only land vehicles the engine knows; a bad id would crash every racer.
-	int32 m = route.vehicleModel;
-	CBaseModelInfo *mi = m < MODELINFOSIZE ? CModelInfo::GetModelInfo(m) : nil;
-	if(mi == nil || mi->GetModelType() != MITYPE_VEHICLE || CModelInfo::IsBoatModel(m) ||
-	   CModelInfo::IsHeliModel(m) || CModelInfo::IsPlaneModel(m)){
-		re3_debug("[MP] race route %s skipped: vehicle %d isn't a car or bike\n", file, (int)m);
+	if(route.type == RACE_ARENA){
+		re3_debug("[MP] race route %s skipped: it's an arena\n", file);
+		return false;
+	}
+	if(!CNetRace::IsLandVehicle(route.vehicleModel)){
+		re3_debug("[MP] race route %s skipped: vehicle %d isn't a car or bike\n", file, (int)route.vehicleModel);
 		return false;
 	}
 	return true;
+}
+
+// Only land vehicles the engine knows; a bad id would crash every racer.
+bool
+CNetRace::IsLandVehicle(int32 m)
+{
+	CBaseModelInfo *mi = m >= 0 && m < MODELINFOSIZE ? CModelInfo::GetModelInfo(m) : nil;
+	return mi && mi->GetModelType() == MITYPE_VEHICLE && !CModelInfo::IsBoatModel(m) &&
+		!CModelInfo::IsHeliModel(m) && !CModelInfo::IsPlaneModel(m);
 }
 
 static int
@@ -225,10 +234,15 @@ void
 CNetRace::RequestRace(int routeIndex)
 {
 	const SRaceRoute *route = GetRoute(routeIndex);
-	if(route == nil)
-		return;
+	if(route)
+		RequestRoute(*route);
+}
+
+void
+CNetRace::RequestRoute(const SRaceRoute &route)
+{
 	SRaceRequest msg;
-	strcpy(msg.route, route->name);
+	msg.route = route;
 	CByteWriter w;
 	msg.Write(w);
 	CNetGame::Client().SendGame(MP_ROUTE_HOST, 0, true, w);
@@ -384,9 +398,9 @@ LeaveRace(void)
 static void
 BeginRace(const SRaceStart &start, int slot)
 {
-	const SRaceRoute *route = (sInvite.raceId == start.raceId) ? CNetRace::FindRoute(sInvite.route) : nil;
-	if(route == nil){
-		CNetChat::AddLine("You don't have this race's route file", CNetChat::NOTICE);
+	const SRaceRoute *route = (sInvite.raceId == start.raceId) ? &sInvite.route : nil;
+	if(route == nil || !CNetRace::IsLandVehicle(route->vehicleModel)){
+		CNetChat::AddLine("Can't join: this race's car doesn't exist in your game", CNetChat::NOTICE);
 		return;
 	}
 	LeaveRace();
@@ -561,9 +575,9 @@ CNetRace::Process(void)
 		sInvite.open = false;
 	if(sInvite.open && !sInvite.accepted && sRace.phase == PHASE_NONE && !CNetMatch::IsPlaying() &&
 	   !CNetChat::IsTyping() && CPad::GetPad(0)->GetFJustDown(2)){	// F3
-		if(FindRoute(sInvite.route) == nil){
+		if(!IsLandVehicle(sInvite.route.vehicleModel)){
 			// Joining would leave us "racing" on the host forever.
-			CNetChat::AddLine("You don't have this race's route file", CNetChat::NOTICE);
+			CNetChat::AddLine("Can't join: this race's car doesn't exist in your game", CNetChat::NOTICE);
 			sInvite.accepted = true;
 			return;
 		}
@@ -631,15 +645,15 @@ CNetRace::OnMessage(uint8 from, uint8 type, CByteReader &body)
 			sSink.SendCancel(busy, from);
 			return;
 		}
-		const SRaceRoute *route = FindRoute(m.route);
-		if(route == nil){
+		// The route came with the request (and passed MpValidateRoute).
+		if(!IsLandVehicle(m.route.vehicleModel)){
 			SRaceCancel cancel;
 			cancel.raceId = sHost.RaceId();
 			cancel.reason = RACE_BAD_ROUTE;
 			sSink.SendCancel(cancel, from);
 			return;
 		}
-		sHost.Request(from, *route, true, now, &sSink);
+		sHost.Request(from, m.route, true, now, &sSink);
 		break;
 	}
 	case GMSG_RACE_ACCEPT: {
@@ -664,13 +678,15 @@ CNetRace::OnMessage(uint8 from, uint8 type, CByteReader &body)
 		sInvite.accepted = m.startedBy == me;	// the starter is in already
 		sInvite.raceId = m.raceId;
 		sInvite.startedBy = m.startedBy;
-		strcpy(sInvite.route, m.route);
+		sInvite.route = m.route;
 		sInvite.deadline = m.deadline;
 		char line[128];
 		if(m.startedBy == me)
-			snprintf(line, sizeof(line), "You started %s - others have 15s to join", m.route);
+			snprintf(line, sizeof(line), "You started %s - others have 15s to join", m.route.name);
+		else if(m.startedBy == MP_PLAYER_NONE || (m.startedBy == 0 && CNetGame::IsDedicated()))
+			snprintf(line, sizeof(line), "Next up: %s - press F3 to join (15s)", m.route.name);
 		else
-			snprintf(line, sizeof(line), "%s started %s - press F3 to join (15s)", NameOf(m.startedBy), m.route);
+			snprintf(line, sizeof(line), "%s started %s - press F3 to join (15s)", NameOf(m.startedBy), m.route.name);
 		CNetChat::AddLine(line, CNetChat::NOTICE);
 		break;
 	}
@@ -701,7 +717,7 @@ CNetRace::OnMessage(uint8 from, uint8 type, CByteReader &body)
 			return;
 		m.msgType = GMSG_RACE_END;
 		bool mine = sRace.phase != PHASE_NONE && sRace.raceId == m.raceId;
-		const char *routeName = mine ? sRace.route.name : (sInvite.raceId == m.raceId ? sInvite.route : "the race");
+		const char *routeName = mine ? sRace.route.name : (sInvite.raceId == m.raceId ? sInvite.route.name : "the race");
 		if(m.n > 0 && m.entries[0].state == RACER_FINISHED){
 			char t[16], line[128];
 			FormatTime(m.entries[0].finishTime, t, sizeof(t));
@@ -721,7 +737,7 @@ CNetRace::OnMessage(uint8 from, uint8 type, CByteReader &body)
 		if(from != 0 || !m.Read(body))
 			return;
 		const char *why = m.reason == RACE_BUSY ? "A race or match is already on" :
-			m.reason == RACE_BAD_ROUTE ? "The host doesn't have that route" :
+			m.reason == RACE_BAD_ROUTE ? "The host can't use that route" :
 			m.reason == RACE_ABORTED ? "The race was called off" : "Nobody joined the race";
 		CNetChat::AddLine(why, CNetChat::NOTICE);
 		if(m.raceId == sInvite.raceId && m.reason != RACE_BUSY)
@@ -803,7 +819,7 @@ CNetRace::Render(void)
 	// Invite countdown, top right.
 	if(sInvite.open && sRace.phase == PHASE_NONE){
 		int secs = Max(0, (int32)(sInvite.deadline - now) / 1000);
-		snprintf(line, sizeof(line), sInvite.accepted ? "%s: starting in %ds" : "%s: F3 to join (%ds)", sInvite.route, secs);
+		snprintf(line, sizeof(line), sInvite.accepted ? "%s: starting in %ds" : "%s: F3 to join (%ds)", sInvite.route.name, secs);
 		SetupFont(0.45f, 0.8f, FONT_STANDARD);
 		CFont::SetRightJustifyOn();
 		CFont::SetColor(CRGBA(255, 220, 120, 255));

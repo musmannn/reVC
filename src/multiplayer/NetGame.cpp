@@ -453,6 +453,12 @@ CNetGame::IsConnected(void)
 }
 
 bool
+CNetGame::IsDedicated(void)
+{
+	return sClient.IsDedicatedSession();
+}
+
+bool
 CNetGame::IsHost(void)
 {
 	return sClient.IsHost();
@@ -537,10 +543,16 @@ int
 CNetGame::NumPlayers(void)
 {
 	int n = 0;
-	for(int i = 0; i < MP_MAX_PLAYERS; i++)
+	for(int i = IsDedicated() ? 1 : 0; i < MP_MAX_PLAYERS; i++)
 		if(sRoster[i].used)
 			n++;
 	return n;
+}
+
+int
+CNetGame::MaxPlayers(void)
+{
+	return IsDedicated() ? MP_MAX_PLAYERS - 1 : MP_MAX_PLAYERS;
 }
 
 const char*

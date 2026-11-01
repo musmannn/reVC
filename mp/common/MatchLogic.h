@@ -10,8 +10,17 @@
 enum eMatchMode
 {
 	MATCH_DM,	// free for all
-	MATCH_TDM	// two teams
+	MATCH_TDM,	// two teams
+	MATCH_KOTH,	// Hold the Hill, free for all
+	MATCH_TKOTH,	// Hold the Hill, two teams
+	MATCH_STUNT,	// Stunt Challenge, free for all
+	MATCH_NUM_MODES
 };
+
+// Team modes: TDM and team Hold the Hill.
+static inline bool MpIsTeamMode(uint8_t mode) { return mode == MATCH_TDM || mode == MATCH_TKOTH; }
+// Hold the Hill and Stunt Challenge need an arena (hills / spawns + vehicle).
+static inline bool MpModeNeedsArena(uint8_t mode) { return mode == MATCH_KOTH || mode == MATCH_TKOTH || mode == MATCH_STUNT; }
 
 static const uint8_t MP_TEAM_RED = 0;
 static const uint8_t MP_TEAM_BLUE = 1;

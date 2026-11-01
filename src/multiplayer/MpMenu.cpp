@@ -57,7 +57,7 @@ MpMenuStatusDraw(bool *disabled, bool userHovering)
 	}
 	if(CNetGame::Client().IsInSession()){
 		char line[64];
-		snprintf(line, sizeof(line), "%s - %d/%d players", CNetGame::InviteCode(), CNetGame::NumPlayers(), (int)MP_MAX_PLAYERS);
+		snprintf(line, sizeof(line), "%s - %d/%d players", CNetGame::InviteCode(), CNetGame::NumPlayers(), CNetGame::MaxPlayers());
 		return MpWideString(line);
 	}
 	if(CNetGame::IsConnected())

@@ -103,7 +103,7 @@ public:
 		CByteWriter w;
 		m.Write(w);
 		SendTo(MP_ROUTE_ALL_BUT_SELF, 0, true, w);
-		printf("[race] invite %u '%s' open for %u s\n", (unsigned)m.raceId, m.route, (unsigned)(CRaceHost::INVITE_MS / 1000));
+		printf("[race] invite %u '%s' open for %u s\n", (unsigned)m.raceId, m.route.name, (unsigned)(CRaceHost::INVITE_MS / 1000));
 		fflush(stdout);
 	}
 	void SendStart(const SRaceStart &m) override
@@ -486,7 +486,7 @@ public:
 			SRaceInvite m;
 			if(!m.Read(body))
 				return;
-			printf("[race] %s invites to '%s'\n", FakeName(m.startedBy), m.route);
+			printf("[race] %s invites to '%s'\n", FakeName(m.startedBy), m.route.name);
 			fflush(stdout);
 			if(raceBot){
 				SRaceAccept a;

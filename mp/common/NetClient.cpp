@@ -31,7 +31,7 @@ CopyString(char *dst, const char *src, uint32_t dstSize)
 
 CNetClient::CNetClient(void)
 	: m_host(nullptr), m_peer(nullptr), m_state(STATE_IDLE), m_wantHost(false), m_isHost(false),
-	  m_haveStartTime(false), m_netAcquired(false), m_myId(MP_PLAYER_NONE), m_startMs(0), m_lastPingMs(0), m_generation(0)
+	  m_haveStartTime(false), m_netAcquired(false), m_myId(MP_PLAYER_NONE), m_hostFlags(0), m_sessionFlags(0), m_startMs(0), m_lastPingMs(0), m_generation(0)
 {
 	m_code[0] = '\0';
 	m_joinCode[0] = '\0';
@@ -83,11 +83,12 @@ CNetClient::Connect(const char *relayAddr, uint16_t port)
 }
 
 bool
-CNetClient::Host(const char *relayAddr, uint16_t port, const char *name)
+CNetClient::Host(const char *relayAddr, uint16_t port, const char *name, uint8_t flags)
 {
 	if(m_state != STATE_IDLE)
 		return false;
 	m_wantHost = true;
+	m_hostFlags = flags & MP_SESSION_DEDICATED;	// the relay drops unknown bits too
 	CopyString(m_name, name, sizeof(m_name));
 	return Connect(relayAddr, port);
 }
@@ -220,6 +221,7 @@ CNetClient::Service(uint32_t nowMs, INetClientListener *l)
 				if(m_wantHost){
 					SMsgCreateSession create;
 					strcpy(create.name, m_name);
+					create.flags = m_hostFlags;
 					create.Write(w);
 				}else{
 					SMsgJoinSession join;
@@ -275,6 +277,7 @@ CNetClient::HandleRelayMessage(uint8_t type, CByteReader &r, INetClientListener 
 		m_state = STATE_IN_SESSION;
 		m_isHost = true;
 		m_myId = msg.playerId;
+		m_sessionFlags = m_hostFlags;
 		CopyString(m_code, msg.code, sizeof(m_code));
 		m_clock.SetIsHost();
 		if(l)
@@ -289,6 +292,7 @@ CNetClient::HandleRelayMessage(uint8_t type, CByteReader &r, INetClientListener 
 			m_state = STATE_IN_SESSION;
 			m_isHost = false;
 			m_myId = msg.playerId;
+			m_sessionFlags = msg.flags;
 			CopyString(m_code, m_joinCode, sizeof(m_code));
 			m_lastPingMs = m_startMs - PING_INTERVAL_MS;	// ping right away
 			if(l)

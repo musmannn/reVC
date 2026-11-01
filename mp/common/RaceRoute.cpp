@@ -127,6 +127,8 @@ MpParseRoute(const char *text, SRaceRoute &out, char *err, uint32_t errSize)
 				out.type = RACE_SPRINT;
 			else if(strcmp(tok[1], "circuit") == 0)
 				out.type = RACE_CIRCUIT;
+			else if(strcmp(tok[1], "arena") == 0)
+				out.type = RACE_ARENA;
 			else{
 				SetError(err, errSize, "bad type");
 				return false;
@@ -183,20 +185,111 @@ MpParseRoute(const char *text, SRaceRoute &out, char *err, uint32_t errSize)
 		out.laps = (uint8_t)laps;
 	}else
 		out.laps = 1;
-	if(!haveVehicle || vehicle <= 0 || vehicle > 65535){
+	if(out.type == RACE_ARENA && !haveVehicle)
+		vehicle = 0;
+	else if(!haveVehicle || vehicle <= 0 || vehicle > 65535){
+		SetError(err, errSize, "bad vehicle");
+		return false;
+	}
+	if(vehicle < 0 || vehicle > 65535){
 		SetError(err, errSize, "bad vehicle");
 		return false;
 	}
 	out.vehicleModel = (uint16_t)vehicle;
-	if(out.numGrid == 0){
+	return MpValidateRoute(out, err, errSize);
+}
+
+static bool
+CoordOk(float v)
+{
+	return isfinite(v) && v >= -MP_ROUTE_MAX_COORD && v <= MP_ROUTE_MAX_COORD;
+}
+
+bool
+MpValidateRoute(const SRaceRoute &route, char *err, uint32_t errSize)
+{
+	SetError(err, errSize, "%s", "");
+	if(memchr(route.name, '\0', sizeof(route.name)) == nullptr || route.name[0] == '\0'){
+		SetError(err, errSize, "missing name");
+		return false;
+	}
+	if(route.type > RACE_ARENA){
+		SetError(err, errSize, "bad type");
+		return false;
+	}
+	if(route.type == RACE_CIRCUIT ? (route.laps < 1 || route.laps > 9) : route.laps != 1){
+		SetError(err, errSize, "bad laps");
+		return false;
+	}
+	if(route.type != RACE_ARENA && route.vehicleModel == 0){
+		SetError(err, errSize, "bad vehicle");
+		return false;
+	}
+	if(route.numGrid == 0 || route.numGrid > MP_MAX_PLAYERS){
 		SetError(err, errSize, "no grid");
 		return false;
 	}
-	if(out.numCheckpoints < 2){
-		SetError(err, errSize, "too few checkpoints");
-		return false;
+	if(route.type == RACE_ARENA){
+		if(route.numCheckpoints < 1){
+			SetError(err, errSize, "too few checkpoints");
+			return false;
+		}
+		if(route.numCheckpoints > MP_MAX_HILLS){
+			SetError(err, errSize, "too many hills");
+			return false;
+		}
+	}else{
+		if(route.numCheckpoints < 2){
+			SetError(err, errSize, "too few checkpoints");
+			return false;
+		}
+		if(route.numCheckpoints > MP_MAX_CHECKPOINTS){
+			SetError(err, errSize, "too many checkpoints");
+			return false;
+		}
+	}
+	for(int i = 0; i < route.numGrid; i++){
+		const SRaceGridSlot &g = route.grid[i];
+		if(!CoordOk(g.pos[0]) || !CoordOk(g.pos[1]) || !CoordOk(g.pos[2]) || !isfinite(g.heading)){
+			SetError(err, errSize, "bad position");
+			return false;
+		}
+	}
+	for(int i = 0; i < route.numCheckpoints; i++){
+		const SRaceCheckpoint &c = route.cps[i];
+		if(!CoordOk(c.pos[0]) || !CoordOk(c.pos[1]) || !CoordOk(c.pos[2]) || !isfinite(c.radius) ||
+		   c.radius <= 0.0f || c.radius > MP_ROUTE_MAX_RADIUS){
+			SetError(err, errSize, "bad position");
+			return false;
+		}
 	}
 	return true;
+}
+
+int
+MpWriteRoute(const SRaceRoute &route, char *out, uint32_t size)
+{
+	static const char *types[] = { "sprint", "circuit", "arena" };
+	uint32_t n = 0;
+	int r;
+#define EMIT(...) do{ r = snprintf(out + n, n < size ? size - n : 0, __VA_ARGS__); if(r < 0) return -1; n += (uint32_t)r; }while(0)
+	EMIT("name %s\ntype %s\n", route.name, route.type <= RACE_ARENA ? types[route.type] : "sprint");
+	if(route.type == RACE_CIRCUIT)
+		EMIT("laps %d\n", (int)route.laps);
+	if(route.vehicleModel != 0 || route.type != RACE_ARENA)
+		EMIT("vehicle %d\n", (int)route.vehicleModel);
+	for(int i = 0; i < route.numGrid; i++){
+		const SRaceGridSlot &g = route.grid[i];
+		EMIT("grid %.2f %.2f %.2f %.1f\n", g.pos[0], g.pos[1], g.pos[2], g.heading);
+	}
+	for(int i = 0; i < route.numCheckpoints; i++){
+		const SRaceCheckpoint &c = route.cps[i];
+		EMIT("cp %.2f %.2f %.2f %.2f\n", c.pos[0], c.pos[1], c.pos[2], c.radius);
+	}
+#undef EMIT
+	if(n >= size)
+		return -1;
+	return (int)n;
 }
 
 uint16_t

@@ -67,6 +67,8 @@ CRemotePlayer::Add(uint8 id, const char *name)
 {
 	if(id >= MP_MAX_PLAYERS || id == CNetGame::MyId())
 		return;
+	if(id == 0 && CNetGame::IsDedicated())
+		return;	// revc-server: no ped
 	CRemotePlayer &p = sPlayers[id];
 	if(p.m_bUsed)
 		Remove(id);
