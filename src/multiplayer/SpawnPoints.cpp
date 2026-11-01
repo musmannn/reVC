@@ -20,14 +20,14 @@ static const int NUM_SLOTS = 8;
 // Ground further than this from the anchor's is a roof or a hole, not the beach.
 static const float MAX_GROUND_DIFF = 2.0f;
 
-// Ground z under (x, y) near the anchor's height, or false if there's no
-// usable ground or the spot is blocked.
+// Ground z under (x, y) near refZ, or false if there's no usable ground or
+// the spot is blocked.
 static bool
-TrySpot(float x, float y, CVector &out)
+TrySpot(float x, float y, float refZ, CVector &out)
 {
 	bool found = false;
-	float z = CWorld::FindGroundZFor3DCoord(x, y, sAnchor.z + MAX_GROUND_DIFF, &found);
-	if(!found || Abs(z - sAnchor.z) > MAX_GROUND_DIFF)
+	float z = CWorld::FindGroundZFor3DCoord(x, y, refZ + MAX_GROUND_DIFF, &found);
+	if(!found || Abs(z - refZ) > MAX_GROUND_DIFF)
 		return false;
 	CVector pos(x, y, z + 1.0f);	// ped centre
 	if(CWorld::TestSphereAgainstWorld(pos, 0.6f, nil, true, true, false, true, false, false))
@@ -47,15 +47,31 @@ CSpawnPoints::Pick(uint8 playerId, CVector &pos, float &heading)
 		float angle = (float)((first + i) % NUM_SLOTS) * (TWOPI / NUM_SLOTS);
 		float dx = Cos(angle) * SPAWN_RADIUS;
 		float dy = Sin(angle) * SPAWN_RADIUS;
-		if(TrySpot(sAnchor.x + dx, sAnchor.y + dy, pos)){
+		if(TrySpot(sAnchor.x + dx, sAnchor.y + dy, sAnchor.z, pos)){
 			// Face the anchor: a ped faces (-sin h, cos h).
 			heading = CGeneral::LimitRadianAngle(Atan2(dx, -dy));
 			return;
 		}
 	}
-	if(!TrySpot(sAnchor.x, sAnchor.y, pos))
+	if(!TrySpot(sAnchor.x, sAnchor.y, sAnchor.z, pos))
 		pos = CVector(sAnchor.x, sAnchor.y, sAnchor.z + 1.0f);
 	heading = 0.0f;
+}
+
+void
+CSpawnPoints::PickNear(const CVector &want, CVector &pos)
+{
+	CStreaming::LoadSceneCollision(want);
+	// want is a ped centre (about 1 m up); look for the ground below it.
+	float refZ = want.z - 1.0f;
+	if(TrySpot(want.x, want.y, refZ, pos))
+		return;
+	for(int i = 0; i < NUM_SLOTS; i++){
+		float angle = (float)i * (TWOPI / NUM_SLOTS);
+		if(TrySpot(want.x + Cos(angle) * 2.0f, want.y + Sin(angle) * 2.0f, refZ, pos))
+			return;
+	}
+	pos = want;	// trust the author
 }
 
 void

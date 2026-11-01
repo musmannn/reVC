@@ -87,6 +87,8 @@ add_library(mpcommon STATIC
 	common/MatchLogic.cpp
 	common/MatchHost.cpp
 	common/RouteEditor.cpp
+	common/HillLogic.cpp
+	common/StuntLogic.cpp
 )
 target_include_directories(mpcommon PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/common)
 target_link_libraries(mpcommon PUBLIC enet)
@@ -133,6 +135,7 @@ add_executable(mp_tests
 	tests/test_matchlogic.cpp
 	tests/test_matchhost.cpp
 	tests/test_routeeditor.cpp
+	tests/test_modes.cpp
 )
 target_include_directories(mp_tests PRIVATE ${MP_VENDOR_DIR}/doctest)
 target_link_libraries(mp_tests PRIVATE relaycore mpcommon Threads::Threads)

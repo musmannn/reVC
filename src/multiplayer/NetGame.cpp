@@ -170,7 +170,7 @@ public:
 			CNetRace::OnMessage(from, type, body);
 			return;
 		}
-		if(type >= GMSG_MATCH_FIRST && type <= GMSG_LAST){
+		if(type >= GMSG_MATCH_FIRST && type <= GMSG_MATCH_LAST){
 			CNetMatch::OnMessage(from, type, body);
 			return;
 		}
@@ -239,8 +239,10 @@ public:
 		}
 		case GMSG_RESPAWNED: {
 			SRespawned msg;
-			if(msg.Read(body))
+			if(msg.Read(body)){
 				CNetCombat::OnRespawned(from, msg);
+				CNetMatch::OnRespawned(from);
+			}
 			break;
 		}
 		case GMSG_SHOT: {

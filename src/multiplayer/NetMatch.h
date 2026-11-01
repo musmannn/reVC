@@ -23,6 +23,7 @@ public:
 	static bool HostBusy(void);		// host: a match is pending or running
 	static void OnMessage(uint8 from, uint8 type, CByteReader &body);
 	static void OnDied(uint8 victim, uint8 killer);	// every GMSG_DIED
+	static void OnRespawned(uint8 id);		// every GMSG_RESPAWNED
 	static void OnPlayerJoined(uint8 id);
 	static void OnPlayerLeft(uint8 id);
 	static void Reset(void);
