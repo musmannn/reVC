@@ -151,3 +151,54 @@ clients: relay + `revc-fakeclient --host --start-match tdm` + several
 - [ ] Tab outside a match shows the session code and who's in it.
 - [ ] Tab is also the on-foot "action" key in the default controls (pick up / answer phone). Check that holding it for the scoreboard doesn't get in the way; if it does, move the scoreboard to another key.
 - [ ] F2 is blocked while you're in a match.
+
+## Plan 5: dedicated server, route editor, more modes (milestone 3)
+
+Engine-free parts are unit tested (editor commands, route wire format, hill and
+stunt scoring, seat table, the dedicated host with real clients over loopback).
+Headless checks with no game:
+
+```bash
+./build-mp/revc-server --with-relay 7777 --code-file code.txt
+./build-mp/revc-fakeclient --relay 127.0.0.1 --join $(cat code.txt) --name Tommy --bot koth --start-match koth --arena gamefiles/data/mp/arenas/washington_beach.route
+./build-mp/revc-fakeclient --relay 127.0.0.1 --join $(cat code.txt) --name Lance --bot stunt --at 0,-500,10
+```
+
+Tommy should end with about one point per second he held the hill. These
+checks need the game:
+
+**Dedicated server**
+
+- [ ] Join a `revc-server` session from the Multiplayer menu: no ped, blip or name tag for the server; the *Session* row and Tab show `n/7`; the server isn't on the Tab list.
+- [ ] Time and weather follow `--hour`/`--weather`; the clock moves a minute per second.
+- [ ] Two players fight over one car's driver seat: one gets it, the other is put back out.
+- [ ] Races and every match mode started from F2 run through the server the same as with a player host.
+- [ ] `--playlist "race:…,koth"`: with 2 players in, an invite appears by itself ("Next up: …"), and the next one after the gap.
+- [ ] The `--motd` welcome shows in chat when you join.
+- [ ] Stop the server: everyone sees the session end.
+
+**Route editor**
+
+- [ ] `/rec help` lists the commands. `/rec new Test`, `/rec grid`, `/rec cp` ×3: the checkpoints and grid slots show as markers (first green, last red) within 200 m.
+- [ ] `/rec ins 2`, `/rec move 3`, `/rec del 1`, `/rec radius 1 15`, `/rec undo` do what they say, and the markers follow.
+- [ ] `/rec test` starts a race on the unsaved route; a friend who doesn't have the file can join and race it.
+- [ ] `/rec save` writes `data/mp/races/test.route` and lists it in `index.txt`; `/rec load Test` brings it back.
+- [ ] `/rec arena Beach`, `/rec spawn` ×2, `/rec hill` ×2, `/rec save` writes `data/mp/arenas/beach.route`; it appears under F2 → *Match arena >*.
+- [ ] Fix the placeholder **Washington Beach** arena (`data/mp/arenas/washington_beach.route`): spawns on open ground, three hills that are reachable on foot and fair to fight over, a stunt vehicle (PCJ-600, 191) that fits. `/rec load Washington Beach`, then `/rec movegrid N`, `/rec move N`, `/rec save`.
+
+**Hold the Hill / Team Hold the Hill**
+
+- [ ] F2 → *Start match >* → Hold the Hill with an arena: everyone spawns at its spawns; the hill is a blue cylinder with a radar blip.
+- [ ] Alone in the hill: it turns green, "HILL: HOLDING", and the score goes up a point a second. With an enemy in it: red, "CONTESTED", no points. Dead players don't count.
+- [ ] After a minute the hill moves to the next point ("The hill has moved"), and the HUD's MOVES timer counts down to it.
+- [ ] Team version: teammates in the hill together all score; one enemy blocks. Friendly fire is off.
+- [ ] Kills show on the board but don't add points. First to 60 (team: 150) or 8 minutes ends it.
+- [ ] Without any arena installed, asking for Hold the Hill says it needs an arena.
+
+**Stunt Challenge**
+
+- [ ] Everyone spawns on the arena's spawns in the arena's vehicle, frozen through 3-2-1-GO.
+- [ ] A jump of under 0.7 s scores nothing; a bigger one shows "AIR n" while in the air and "STUNT +n" on a clean landing; landing on the roof or side shows "CRASHED!" and scores nothing.
+- [ ] A barrel roll or flip shows "1x FLIP" and roughly doubles the points; a flat 360 in the air shows "1x SPIN".
+- [ ] Getting out, or wrecking the car, gives you a new one at your spawn after 3 s.
+- [ ] After 4 minutes the most points wins.
