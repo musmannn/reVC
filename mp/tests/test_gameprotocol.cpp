@@ -406,3 +406,103 @@ TEST_CASE("race messages round trip")
 		CHECK(!out.Read(r));
 	}
 }
+
+TEST_CASE("match messages round trip")
+{
+	SUBCASE("request")
+	{
+		SMatchRequest in, out;
+		in.mode = MATCH_TDM;
+		REQUIRE(RoundTrip(in, GMSG_MATCH_REQUEST, out));
+		CHECK(out.mode == MATCH_TDM);
+	}
+	SUBCASE("invite")
+	{
+		SMatchInvite in, out;
+		in.matchId = 4;
+		in.mode = MATCH_DM;
+		in.startedBy = 2;
+		in.scoreLimit = 20;
+		in.timeLimitMs = 600000;
+		in.deadline = 0xFFFFFF00u;
+		REQUIRE(RoundTrip(in, GMSG_MATCH_INVITE, out));
+		CHECK(out.matchId == 4);
+		CHECK(out.mode == MATCH_DM);
+		CHECK(out.startedBy == 2);
+		CHECK(out.scoreLimit == 20);
+		CHECK(out.timeLimitMs == 600000);
+		CHECK(out.deadline == 0xFFFFFF00u);
+		CheckAllPrefixesFail(in);
+	}
+	SUBCASE("accept")
+	{
+		SMatchAccept in, out;
+		in.matchId = 9;
+		REQUIRE(RoundTrip(in, GMSG_MATCH_ACCEPT, out));
+		CHECK(out.matchId == 9);
+	}
+	SUBCASE("start")
+	{
+		SMatchStart in, out;
+		in.matchId = 3;
+		in.mode = MATCH_TDM;
+		in.scoreLimit = 30;
+		in.timeLimitMs = 1000;
+		in.startTime = 777;
+		in.n = 2;
+		in.ids[0] = 5;
+		in.teams[0] = MP_TEAM_RED;
+		in.ids[1] = 1;
+		in.teams[1] = MP_TEAM_BLUE;
+		REQUIRE(RoundTrip(in, GMSG_MATCH_START, out));
+		CHECK(out.matchId == 3);
+		CHECK(out.mode == MATCH_TDM);
+		CHECK(out.scoreLimit == 30);
+		CHECK(out.timeLimitMs == 1000);
+		CHECK(out.startTime == 777);
+		REQUIRE(out.n == 2);
+		CHECK(out.ids[1] == 1);
+		CHECK(out.teams[1] == MP_TEAM_BLUE);
+		CheckAllPrefixesFail(in);
+	}
+	SUBCASE("scores with 8 players, and end")
+	{
+		SMatchScores in, out;
+		in.matchId = 6;
+		in.teamScore[0] = 12;
+		in.teamScore[1] = -3;
+		in.winnerTeam = MP_TEAM_BLUE;
+		in.n = MP_MAX_PLAYERS;
+		for(uint8_t i = 0; i < MP_MAX_PLAYERS; i++){
+			in.entries[i].id = i;
+			in.entries[i].team = (uint8_t)(i % 2);
+			in.entries[i].score = (int16_t)(i - 3);
+			in.entries[i].kills = (uint16_t)(i * 2);
+			in.entries[i].deaths = (uint16_t)(i + 1);
+		}
+		uint32_t size = 0;
+		REQUIRE(RoundTrip(in, GMSG_MATCH_SCORES, out, &size));
+		CHECK(size <= 120);
+		CHECK(out.matchId == 6);
+		CHECK(out.teamScore[1] == -3);
+		CHECK(out.winnerTeam == MP_TEAM_BLUE);
+		REQUIRE(out.n == MP_MAX_PLAYERS);
+		CHECK(out.entries[0].score == -3);
+		CHECK(out.entries[7].kills == 14);
+		CHECK(out.entries[7].deaths == 8);
+		CheckAllPrefixesFail(in);
+		in.msgType = GMSG_MATCH_END;
+		SMatchScores end;
+		REQUIRE(RoundTrip(in, GMSG_MATCH_END, end));
+	}
+	SUBCASE("cancel")
+	{
+		SMatchCancel in, out;
+		in.matchId = 2;
+		in.reason = MATCH_NOT_ENOUGH;
+		REQUIRE(RoundTrip(in, GMSG_MATCH_CANCEL, out));
+		CHECK(out.reason == MATCH_NOT_ENOUGH);
+	}
+	CHECK((int)GMSG_RACE_LAST < (int)GMSG_MATCH_FIRST);
+	CHECK((int)GMSG_MATCH_CANCEL <= (int)GMSG_LAST);
+}

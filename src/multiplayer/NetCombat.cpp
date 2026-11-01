@@ -7,6 +7,7 @@
 #include "NetVehicles.h"
 #include "RemotePlayer.h"
 #include "SpawnPoints.h"
+#include "NetMatch.h"
 #include "MpText.h"
 #include "CivilianPed.h"
 #include "DMAudio.h"
@@ -22,6 +23,7 @@
 static bool sApplyingNetDamage;	// our InflictDamage call for a GMSG_DAMAGE
 static bool sReportedDeath;
 static bool sHaveOverride;
+static uint32 sRespawnCount;	// spreads respawns over the spawn points
 static CVector sOverridePos;
 static float sOverrideHeading;
 
@@ -86,8 +88,9 @@ CNetCombat::InterceptDamage(CPed *victim, CEntity *by, eWeaponType weapon, float
 
 	CRemotePlayer *remote = CRemotePlayer::FindByPed(victim);
 	if(remote){
-		// Puppets never take local damage; their owner decides.
-		if(IsLocalAttacker(by) && damage > 0.0f){
+		// Puppets never take local damage; their owner decides. No friendly
+		// fire between team deathmatch teammates.
+		if(IsLocalAttacker(by) && damage > 0.0f && !CNetMatch::IsTeammate(remote->m_id)){
 			SDamage msg;
 			msg.victimId = remote->m_id;
 			msg.weapon = (uint8)weapon;
@@ -119,6 +122,8 @@ CNetCombat::OnDamage(uint8 from, const SDamage &msg)
 		return;
 	if(msg.amount <= 0.0f || msg.amount > 1000.0f)
 		return;
+	if(CNetMatch::IsTeammate(from))
+		return;	// no friendly fire, whatever the attacker's game thinks
 	CRemotePlayer *attacker = CRemotePlayer::Get(from);
 	CEntity *by = attacker ? (CEntity*)attacker->m_pPed : nil;
 	sApplyingNetDamage = true;
@@ -218,7 +223,7 @@ CNetCombat::GetRespawnPoint(CVector &pos, float &headingDeg)
 		pos = sOverridePos;
 		heading = sOverrideHeading;
 	}else
-		CSpawnPoints::Pick(CNetGame::MyId(), pos, heading);
+		CSpawnPoints::Pick((uint8)(CNetGame::MyId() + sRespawnCount++), pos, heading);
 	headingDeg = RADTODEG(heading);
 }
 
@@ -228,7 +233,9 @@ CNetCombat::OnLocalRespawned(void)
 	CPlayerPed *player = FindPlayerPed();
 	if(player == nil)
 		return;
-	if(!sHaveOverride)
+	if(CNetMatch::IsPlaying())
+		CNetMatch::GiveMatchLoadout(player);
+	else if(!sHaveOverride)
 		CSpawnPoints::GiveLoadout(player);
 	player->m_lastDamEntity = nil;	// no registered reference; don't carry it over
 	sReportedDeath = false;

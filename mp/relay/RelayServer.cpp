@@ -127,7 +127,39 @@ CRelayServer::Start(const SRelayConfig &config)
 	m_numSessions = 0;
 	m_numPeers = 0;
 	m_lastHousekeepingMs = enet_time_get();
+	memset(m_joinFailures, 0, sizeof(m_joinFailures));
 	return true;
+}
+
+// The failure counter for an address, reset each minute. A new address takes
+// a free or expired slot, else the one with the oldest window.
+CRelayServer::SJoinFailures*
+CRelayServer::JoinFailuresFor(uint32_t host, uint32_t now)
+{
+	const size_t n = sizeof(m_joinFailures) / sizeof(m_joinFailures[0]);
+	SJoinFailures *slot = nullptr;
+	for(size_t i = 0; i < n && slot == nullptr; i++)
+		if(m_joinFailures[i].count > 0 && m_joinFailures[i].host == host)
+			slot = &m_joinFailures[i];
+	if(slot == nullptr){
+		for(size_t i = 0; i < n; i++){
+			SJoinFailures &f = m_joinFailures[i];
+			if(f.count == 0 || now - f.windowStartMs >= 60000){
+				slot = &f;
+				break;
+			}
+			if(slot == nullptr || (int32_t)(f.windowStartMs - slot->windowStartMs) < 0)
+				slot = &f;
+		}
+		slot->host = host;
+		slot->windowStartMs = now;
+		slot->count = 0;
+	}
+	if(now - slot->windowStartMs >= 60000){
+		slot->windowStartMs = now;
+		slot->count = 0;
+	}
+	return slot;
 }
 
 uint16_t
@@ -379,12 +411,17 @@ CRelayServer::Forward(ENetPeer *peer, uint8_t channel, ENetPacket *packet, uint8
 
 	// Same payload; the downlink envelope carries the sender's id.
 	uint32_t flags = packet->flags & (ENET_PACKET_FLAG_RELIABLE | ENET_PACKET_FLAG_UNSEQUENCED);
+	bool reliable = (flags & ENET_PACKET_FLAG_RELIABLE) != 0;
 	ENetPacket *out = enet_packet_create(packet->data, packet->dataLength, flags);
 	if(out == nullptr)
 		return;
 	out->data[1] = p.playerId;
-	for(uint32_t i = 0; i < numDest; i++)
+	for(uint32_t i = 0; i < numDest; i++){
+		// A peer that isn't keeping up skips snapshots; they'd be stale anyway.
+		if(!reliable && PeerData(dest[i]).congested)
+			continue;
 		enet_peer_send(dest[i], channel, out);
+	}
 	if(out->referenceCount == 0)
 		enet_packet_destroy(out);
 }
@@ -535,11 +572,19 @@ CRelayServer::HandleJoin(ENetPeer *peer, const uint8_t *body, uint32_t size)
 		RejectJoin(peer, JOIN_VERSION_MISMATCH);
 		return;
 	}
+	SJoinFailures *fails = JoinFailuresFor(peer->address.host, enet_time_get());
+	if(fails->count >= m_config.maxFailedJoinsPerMinute){
+		// Too many wrong codes from this address: refuse without looking.
+		Warn(peer, "too many failed joins");
+		RejectJoin(peer, JOIN_NOT_FOUND);
+		return;
+	}
 	char code[MP_INVITE_CODE_LEN + 1];
 	int32_t index = -1;
 	if(r.ReadString(msg.code, sizeof(msg.code)) && MpNormalizeInviteCode(msg.code, code))
 		index = FindSession(code);
 	if(index < 0){
+		fails->count++;
 		RejectJoin(peer, JOIN_NOT_FOUND);
 		return;
 	}
@@ -639,10 +684,23 @@ CRelayServer::Housekeeping(uint32_t now)
 	m_lastHousekeepingMs = now;
 	for(size_t i = 0; i < m_host->peerCount; i++){
 		SRelayPeer &p = m_peers[i];
+		ENetPeer *peer = &m_host->peers[i];
 		if(p.state == PEER_HELLO && now - p.connectedMs >= HELLO_TIMEOUT_MS){
-			Warn(&m_host->peers[i], "no create/join in time");
+			Warn(peer, "no create/join in time");
 			p.state = PEER_CLOSING;
-			enet_peer_disconnect(&m_host->peers[i], 0);
+			enet_peer_disconnect(peer, 0);
+			continue;
+		}
+		if(p.state != PEER_IN_SESSION || peer->state != ENET_PEER_STATE_CONNECTED)
+			continue;
+		size_t queued = enet_list_size(&peer->outgoingCommands) + enet_list_size(&peer->sentReliableCommands);
+		p.congested = queued > m_config.maxQueuedPerPeer / 2;
+		if(queued > m_config.maxQueuedPerPeer){
+			// Not acknowledging: drop it now instead of buffering for its
+			// whole ENet timeout. OnDisconnect tells the session.
+			MpRelayLog("dropping %s: %u commands queued", p.addr, (unsigned)queued);
+			OnDisconnect(peer, 0);
+			enet_peer_disconnect_now(peer, 0);
 		}
 	}
 }

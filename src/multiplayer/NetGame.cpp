@@ -13,6 +13,7 @@
 #include "NetChat.h"
 #include "FreeroamMenu.h"
 #include "NetRace.h"
+#include "NetMatch.h"
 #include "GameProtocol.h"
 #include "Frontend.h"
 #include "Messages.h"
@@ -72,6 +73,7 @@ EndLocal(const char *statusKey)
 	CNetChat::ReleaseWorld();
 	CFreeroamMenu::Reset();
 	CNetRace::Reset();
+	CNetMatch::Reset();
 	sWantWorld = false;
 	sInGame = false;
 	sPendingStart = false;
@@ -140,6 +142,7 @@ public:
 		sRoster[id].used = false;
 		if(sInGame){
 			CNetRace::OnPlayerLeft(id);
+			CNetMatch::OnPlayerLeft(id);
 			CNetVehicles::RemoveAllOwnedBy(id);
 		}
 		CRemotePlayer::Remove(id);
@@ -162,8 +165,12 @@ public:
 		// Game messages only make sense once the multiplayer world runs.
 		if(!sInGame)
 			return;
-		if(type >= GMSG_RACE_FIRST && type <= GMSG_LAST){
+		if(type >= GMSG_RACE_FIRST && type <= GMSG_RACE_LAST){
 			CNetRace::OnMessage(from, type, body);
+			return;
+		}
+		if(type >= GMSG_MATCH_FIRST && type <= GMSG_LAST){
+			CNetMatch::OnMessage(from, type, body);
 			return;
 		}
 		switch(type){
@@ -179,6 +186,7 @@ public:
 					CNetVehicles::OnPlayerJoined(from);
 					CNetChat::SendWorld();
 					CNetRace::OnPlayerJoined(from);
+					CNetMatch::OnPlayerJoined(from);
 				}
 			}
 			break;
@@ -222,8 +230,10 @@ public:
 		}
 		case GMSG_DIED: {
 			SDied msg;
-			if(msg.Read(body))
+			if(msg.Read(body)){
 				CNetCombat::OnDied(from, msg);
+				CNetMatch::OnDied(from, msg.killerId);
+			}
 			break;
 		}
 		case GMSG_RESPAWNED: {
@@ -375,6 +385,7 @@ CNetGame::Process(void)
 	CRemotePlayer::UpdateAll();
 	CNetCombat::Update();
 	CNetRace::Process();
+	CNetMatch::Process();
 	if(now - sLastStateSentMs >= 1000 / MP_SNAPSHOT_HZ){
 		sLastStateSentMs = now;
 		SendLocalState();
@@ -390,8 +401,10 @@ CNetGame::Render2d(void)
 		return;
 	CRemotePlayer::RenderNameTags();
 	CNetRace::Render();
+	CNetMatch::Render();
 	CNetChat::Render();
 	CFreeroamMenu::Render();
+	CNetMatch::RenderScoreboard();
 }
 
 void
@@ -407,6 +420,7 @@ CNetGame::OnWorldShutdown(void)
 	// The engine is about to clear the world: drop our puppets first so
 	// nothing points at deleted peds. The session itself stays.
 	CNetRace::Reset();
+	CNetMatch::Reset();
 	CRemotePlayer::RemoveAll();
 	CNetVehicles::Clear();
 	CFreeroamMenu::Reset();
@@ -593,6 +607,7 @@ CNetGame::OnWorldStarted(void)
 	}
 	CNetChat::SendWorld();
 	CNetRace::Init();
+	CNetMatch::Init();
 }
 
 void

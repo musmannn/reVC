@@ -7,6 +7,7 @@
 #include "NetChat.h"
 #include "NetVehicles.h"
 #include "NetRace.h"
+#include "NetMatch.h"
 #include "SpawnPoints.h"
 #include "MpText.h"
 #include "Automobile.h"
@@ -419,7 +420,7 @@ CFreeroamMenu::Update(void)
 	}
 	CPlayerPed *player = FindPlayerPed();
 	if(!sOpen){
-		if(CNetChat::IsTyping() || CNetRace::IsRacing() || FrontEndMenuManager.m_bMenuActive || player == nil || player->DyingOrDead())
+		if(CNetChat::IsTyping() || CNetRace::IsRacing() || CNetMatch::IsPlaying() || FrontEndMenuManager.m_bMenuActive || player == nil || player->DyingOrDead())
 			return;
 		if(!pad->GetFJustDown(1) || pad->ArePlayerControlsDisabled())	// F2
 			return;

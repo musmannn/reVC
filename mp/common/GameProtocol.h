@@ -13,6 +13,7 @@
 #include "ByteStream.h"
 #include "Protocol.h"
 #include "RaceRoute.h"
+#include "MatchLogic.h"
 
 enum eGameMsg : uint8_t
 {
@@ -38,6 +39,16 @@ enum eGameMsg : uint8_t
 	GMSG_RACE_STANDINGS = 85,	// host -> all, 4 Hz, unreliable
 	GMSG_RACE_END = 86,		// host -> all, reliable (final standings)
 	GMSG_RACE_CANCEL = 87,		// host -> all or one
+	GMSG_RACE_LAST = 87,
+
+	GMSG_MATCH_FIRST = 88,		// 88..95 deathmatch / team deathmatch
+	GMSG_MATCH_REQUEST = 88,	// -> host
+	GMSG_MATCH_INVITE = 89,		// host -> all
+	GMSG_MATCH_ACCEPT = 90,		// -> host
+	GMSG_MATCH_START = 91,		// host -> all
+	GMSG_MATCH_SCORES = 92,		// host -> all, 2 Hz, unreliable
+	GMSG_MATCH_END = 93,		// host -> all, reliable (final scores)
+	GMSG_MATCH_CANCEL = 94,		// host -> all or one
 	GMSG_LAST = 95
 };
 
@@ -320,6 +331,98 @@ struct SRaceCancel
 	uint8_t reason;		// eRaceCancelReason
 
 	SRaceCancel(void) : raceId(0), reason(RACE_BUSY) {}
+	void Write(CByteWriter &w) const;
+	bool Read(CByteReader &r);
+};
+
+// ---- Deathmatch / team deathmatch (Plan 4). matchId is a u16 the host
+// increments; stale ids are ignored. Kills come from GMSG_DIED.
+
+enum eMatchCancelReason
+{
+	MATCH_BUSY,		// a match or race is already on
+	MATCH_NOT_ENOUGH,	// fewer than 2 accepted (or one team empty)
+	MATCH_ABORTED		// the host's world restarted
+};
+
+struct SMatchRequest
+{
+	uint8_t mode;		// eMatchMode
+
+	SMatchRequest(void) : mode(MATCH_DM) {}
+	void Write(CByteWriter &w) const;
+	bool Read(CByteReader &r);
+};
+
+struct SMatchInvite
+{
+	uint16_t matchId;
+	uint8_t mode;
+	uint8_t startedBy;
+	uint16_t scoreLimit;
+	uint32_t timeLimitMs;
+	uint32_t deadline;	// session time
+
+	SMatchInvite(void) : matchId(0), mode(MATCH_DM), startedBy(MP_PLAYER_NONE), scoreLimit(0), timeLimitMs(0), deadline(0) {}
+	void Write(CByteWriter &w) const;
+	bool Read(CByteReader &r);
+};
+
+struct SMatchAccept
+{
+	uint16_t matchId;
+
+	SMatchAccept(void) : matchId(0) {}
+	void Write(CByteWriter &w) const;
+	bool Read(CByteReader &r);
+};
+
+struct SMatchStart
+{
+	uint16_t matchId;
+	uint8_t mode;
+	uint16_t scoreLimit;
+	uint32_t timeLimitMs;
+	uint32_t startTime;	// session time the fighting starts
+	uint8_t n;
+	uint8_t ids[MP_MAX_PLAYERS];
+	uint8_t teams[MP_MAX_PLAYERS];
+
+	SMatchStart(void) : matchId(0), mode(MATCH_DM), scoreLimit(0), timeLimitMs(0), startTime(0), n(0) {}
+	void Write(CByteWriter &w) const;
+	bool Read(CByteReader &r);
+};
+
+struct SMatchScoreEntry
+{
+	uint8_t id;
+	uint8_t team;
+	int16_t score;
+	uint16_t kills;
+	uint16_t deaths;
+};
+
+// GMSG_MATCH_SCORES, or GMSG_MATCH_END with the same body.
+struct SMatchScores
+{
+	uint8_t msgType;
+	uint16_t matchId;
+	int16_t teamScore[2];
+	uint8_t winnerTeam;	// team DM: MP_TEAM_* or MP_TEAM_NONE for a draw (as things stand)
+	uint8_t n;
+	SMatchScoreEntry entries[MP_MAX_PLAYERS];	// standings order
+
+	SMatchScores(void) : msgType(GMSG_MATCH_SCORES), matchId(0), winnerTeam(MP_TEAM_NONE), n(0) { teamScore[0] = teamScore[1] = 0; }
+	void Write(CByteWriter &w) const;
+	bool Read(CByteReader &r);
+};
+
+struct SMatchCancel
+{
+	uint16_t matchId;
+	uint8_t reason;		// eMatchCancelReason
+
+	SMatchCancel(void) : matchId(0), reason(MATCH_BUSY) {}
 	void Write(CByteWriter &w) const;
 	bool Read(CByteReader &r);
 };

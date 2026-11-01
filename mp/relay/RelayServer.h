@@ -21,6 +21,12 @@ struct SRelayConfig
 	uint32_t maxPacketsPerSecond = 200;
 	const char *bindAddress = nullptr;	// nullptr = all interfaces
 	uint32_t maxPeersPerAddress = 16;	// connections from one IP (households share one)
+	// Reliable commands queued for one peer before it counts as not keeping
+	// up: over half, its unreliable snapshots are dropped; over all of it,
+	// it's disconnected (so a stalled client can't grow the relay's memory).
+	uint32_t maxQueuedPerPeer = 2048;
+	// Joins with an unknown code allowed per IP per minute (stops guessing).
+	uint32_t maxFailedJoinsPerMinute = 10;
 };
 
 class CRelayServer
@@ -43,7 +49,15 @@ class CRelayServer
 		uint32_t windowPackets;
 		uint32_t lastWarnMs;
 		bool warned;
+		bool congested;		// too much queued: unreliable traffic skipped
 		char addr[48];
+	};
+
+	struct SJoinFailures
+	{
+		uint32_t host;		// IPv4 address
+		uint32_t windowStartMs;
+		uint32_t count;
 	};
 
 	struct SRelaySession
@@ -64,6 +78,9 @@ class CRelayServer
 	uint32_t m_codeCounter;
 	uint32_t m_lastHousekeepingMs;
 	bool m_netAcquired;
+	SJoinFailures m_joinFailures[64];
+
+	SJoinFailures *JoinFailuresFor(uint32_t host, uint32_t now);
 
 	SRelayPeer &PeerData(_ENetPeer *peer);
 	void OnConnect(_ENetPeer *peer);

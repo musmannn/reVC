@@ -3,7 +3,7 @@
 //
 //   revc-fakeclient --relay HOST[:PORT] (--host | --join CODE) [--name NAME]
 //                   [--say TEXT] [--seconds N] [--bot walk|drive|race --at X,Y,Z [--model N]]
-//                   [--start-race ROUTE]
+//                   [--start-race ROUTE] [--bot dm] [--start-match dm|tdm]
 //
 // Prints one line per event. Exits 0 when --seconds runs out or on Ctrl+C,
 // non-zero when the session ends, a join fails or the connection drops.
@@ -20,6 +20,7 @@
 
 #include "GameProtocol.h"
 #include "RaceHost.h"
+#include "MatchHost.h"
 #include "NetClient.h"
 
 static volatile sig_atomic_t sQuit = 0;
@@ -50,6 +51,7 @@ struct SFakeOptions
 	float at[3];
 	uint16_t model;
 	const char *startRace;	// host: route file or name to race on
+	int startMatch;		// host: -1, or MATCH_DM / MATCH_TDM
 };
 
 static uint32_t sNow;	// NetNow of the current tick, for callbacks
@@ -145,6 +147,93 @@ public:
 
 static CFakeRaceHost sRaceHost;
 
+static void
+PrintScores(const char *tag, const SMatchScores &s, uint8_t mode)
+{
+	printf("[%s] match %u:", tag, (unsigned)s.matchId);
+	if(mode == MATCH_TDM)
+		printf(" Red %d - Blue %d |", (int)s.teamScore[MP_TEAM_RED], (int)s.teamScore[MP_TEAM_BLUE]);
+	for(int i = 0; i < s.n; i++){
+		const SMatchScoreEntry &e = s.entries[i];
+		printf(" %d. %s%s %d (%u/%u)", i + 1, FakeName(e.id),
+			e.team == MP_TEAM_RED ? "[R]" : e.team == MP_TEAM_BLUE ? "[B]" : "",
+			(int)e.score, (unsigned)e.kills, (unsigned)e.deaths);
+	}
+	printf("\n");
+	fflush(stdout);
+}
+
+// --start-match on the fake host: the same CMatchHost the game host runs.
+class CFakeMatchHost : public IMatchHostSink
+{
+public:
+	CMatchHost host;
+	bool requested;
+	uint8_t mode;
+
+	CFakeMatchHost(void) : requested(false), mode(MATCH_DM) {}
+
+	void SendInvite(const SMatchInvite &m) override
+	{
+		CByteWriter w;
+		m.Write(w);
+		SendTo(MP_ROUTE_ALL_BUT_SELF, 0, true, w);
+		printf("[match] invite %u %s to %u, open for %u s\n", (unsigned)m.matchId, m.mode == MATCH_TDM ? "team deathmatch" : "deathmatch",
+			(unsigned)m.scoreLimit, (unsigned)(CMatchHost::INVITE_MS / 1000));
+		fflush(stdout);
+	}
+	void SendStart(const SMatchStart &m) override
+	{
+		CByteWriter w;
+		m.Write(w);
+		SendTo(MP_ROUTE_ALL_BUT_SELF, 0, true, w);
+		printf("[match] start %u with %u players\n", (unsigned)m.matchId, (unsigned)m.n);
+		fflush(stdout);
+	}
+	void SendScores(const SMatchScores &m) override
+	{
+		CByteWriter w;
+		m.Write(w);
+		SendTo(MP_ROUTE_ALL_BUT_SELF, 0, false, w);
+		static uint32_t lastPrint;
+		if(sNow - lastPrint >= 3000){
+			lastPrint = sNow;
+			PrintScores("scores", m, mode);
+		}
+	}
+	void SendEnd(const SMatchScores &m) override
+	{
+		CByteWriter w;
+		m.Write(w);
+		SendTo(MP_ROUTE_ALL_BUT_SELF, 0, true, w);
+		PrintScores("end", m, mode);
+	}
+	void SendCancel(const SMatchCancel &m, uint8_t target) override
+	{
+		CByteWriter w;
+		m.Write(w);
+		if(target == MP_PLAYER_NONE)
+			SendTo(MP_ROUTE_ALL_BUT_SELF, 0, true, w);
+		else
+			SendTo(MP_ROUTE_PLAYER, target, true, w);
+		printf("[match] cancelled (reason %u)\n", (unsigned)m.reason);
+		fflush(stdout);
+	}
+};
+static CFakeMatchHost sMatchHost;
+
+// --bot dm: accepts every match and "dies" every 3 s, killed by someone else.
+struct SFakeFighter
+{
+	bool playing;
+	uint16_t matchId;
+	uint32_t startTime;
+	uint32_t deaths;
+	uint8_t others[MP_MAX_PLAYERS];
+	int numOthers;
+};
+static SFakeFighter sFighter;
+
 // --bot race: accepts every invite and crosses a checkpoint every 4 s.
 struct SFakeRacer
 {
@@ -233,6 +322,20 @@ public:
 			strncpy(sNames[id], name, MP_MAX_NAME_LEN);
 			sNames[id][MP_MAX_NAME_LEN] = '\0';
 		}
+		if(opts->startMatch >= 0 && client->IsHost()){
+			if(!sMatchHost.requested){
+				sMatchHost.requested = true;
+				sMatchHost.mode = (uint8_t)opts->startMatch;
+				sMatchHost.host.Request(client->MyId(), sMatchHost.mode, false, client->SessionTime(sNow), &sMatchHost);
+			}else{
+				SMatchInvite invite;
+				if(sMatchHost.host.GetInvite(invite)){
+					CByteWriter w;
+					invite.Write(w);
+					client->SendGame(MP_ROUTE_PLAYER, id, true, w);
+				}
+			}
+		}
 		if(opts->startRace && client->IsHost()){
 			// The race opens when the first player arrives; late joiners
 			// still get the open invite.
@@ -254,6 +357,7 @@ public:
 		printf("[left] %u\n", (unsigned)id);
 		fflush(stdout);
 		sRaceHost.host.OnLeft(id);
+		sMatchHost.host.OnLeft(id);
 	}
 	void OnSessionEnded(eEndReason reason) override
 	{
@@ -276,12 +380,102 @@ public:
 	}
 	void OnGameMessage(uint8_t from, uint8_t type, CByteReader &body) override
 	{
-		if(type >= GMSG_RACE_FIRST && type <= GMSG_LAST){
+		if(type >= GMSG_RACE_FIRST && type <= GMSG_RACE_LAST){
 			OnRaceMessage(from, type, body);
+			return;
+		}
+		if(type >= GMSG_MATCH_FIRST && type <= GMSG_LAST){
+			OnMatchMessage(from, type, body);
+			return;
+		}
+		if(type == GMSG_DIED){
+			SDied d;
+			if(d.Read(body) && client->IsHost())
+				sMatchHost.host.OnDeath(from, d.killerId, client->SessionTime(sNow));
+			printf("[died] %s (killer %s)\n", FakeName(from), d.killerId == MP_PLAYER_NONE ? "none" : FakeName(d.killerId));
+			fflush(stdout);
 			return;
 		}
 		printf("[game] from=%u type=%u bytes=%u\n", (unsigned)from, (unsigned)type, (unsigned)body.Remaining());
 		fflush(stdout);
+	}
+
+	void OnMatchMessage(uint8_t from, uint8_t type, CByteReader &body)
+	{
+		bool dmBot = opts->bot && strcmp(opts->bot, "dm") == 0;
+		switch(type){
+		case GMSG_MATCH_INVITE: {
+			SMatchInvite m;
+			if(!m.Read(body))
+				return;
+			printf("[match] %s invites to %s\n", FakeName(m.startedBy), m.mode == MATCH_TDM ? "team deathmatch" : "deathmatch");
+			fflush(stdout);
+			if(dmBot){
+				SMatchAccept a;
+				a.matchId = m.matchId;
+				CByteWriter w;
+				a.Write(w);
+				client->SendGame(MP_ROUTE_HOST, 0, true, w);
+			}
+			break;
+		}
+		case GMSG_MATCH_START: {
+			SMatchStart m;
+			if(!m.Read(body))
+				return;
+			bool in = false;
+			sFighter.numOthers = 0;
+			for(int i = 0; i < m.n; i++){
+				if(m.ids[i] == client->MyId())
+					in = true;
+				else
+					sFighter.others[sFighter.numOthers++] = m.ids[i];
+			}
+			if(in && dmBot){
+				sFighter.playing = true;
+				sFighter.matchId = m.matchId;
+				sFighter.startTime = m.startTime;
+				sFighter.deaths = 0;
+				printf("[match] fighting in match %u\n", (unsigned)m.matchId);
+				fflush(stdout);
+			}
+			break;
+		}
+		case GMSG_MATCH_SCORES: {
+			SMatchScores m;
+			static uint32_t lastPrint;
+			if(m.Read(body) && sNow - lastPrint >= 3000){
+				lastPrint = sNow;
+				PrintScores("scores", m, m.entries[0].team == MP_TEAM_NONE ? MATCH_DM : MATCH_TDM);
+			}
+			break;
+		}
+		case GMSG_MATCH_END: {
+			SMatchScores m;
+			if(m.Read(body)){
+				PrintScores("end", m, m.n && m.entries[0].team != MP_TEAM_NONE ? MATCH_TDM : MATCH_DM);
+				if(m.matchId == sFighter.matchId)
+					sFighter.playing = false;
+			}
+			break;
+		}
+		case GMSG_MATCH_CANCEL: {
+			SMatchCancel m;
+			if(m.Read(body)){
+				printf("[match] cancelled (reason %u)\n", (unsigned)m.reason);
+				fflush(stdout);
+			}
+			break;
+		}
+		case GMSG_MATCH_ACCEPT: {
+			SMatchAccept m;
+			if(m.Read(body) && client->IsHost())
+				sMatchHost.host.OnAccept(from, m.matchId, client->SessionTime(sNow));
+			break;
+		}
+		default:
+			break;
+		}
 	}
 
 	void OnRaceMessage(uint8_t from, uint8_t type, CByteReader &body)
@@ -485,6 +679,21 @@ RunFakeClient(const SFakeOptions &opts, const FakeTickFn &tick)
 			tick(client, now);
 		if(client.IsInSession() && client.IsHost() && opts.startRace)
 			sRaceHost.host.Update(client.SessionTime(now), &sRaceHost);
+		if(client.IsInSession() && client.IsHost() && opts.startMatch >= 0)
+			sMatchHost.host.Update(client.SessionTime(now), &sMatchHost);
+		if(client.IsInSession() && sFighter.playing && sFighter.numOthers > 0){
+			// Die every 3 s of session time, "killed" by the others in turn.
+			uint32_t due = sFighter.startTime + 3000u * (sFighter.deaths + 1u);
+			if((int32_t)(client.SessionTime(now) - due) >= 0){
+				SDied d;
+				d.killerId = sFighter.others[sFighter.deaths % sFighter.numOthers];
+				d.weapon = 23;	// pistol
+				sFighter.deaths++;
+				CByteWriter w;
+				d.Write(w);
+				client.SendGame(MP_ROUTE_ALL, 0, true, w);
+			}
+		}
 		if(client.IsInSession() && sRacer.racing){
 			// One checkpoint every 4 s of session time; the host ignores
 			// anything past the finish.
@@ -529,6 +738,9 @@ Usage(FILE *f)
 		"  --at X,Y,Z           centre of the bot's circle (default 0,0,10)\n"
 		"  --model N            vehicle model for --bot drive (default 132)\n"
 		"  --bot race           accept every race invite and cross a checkpoint every 4 s\n"
+		"  --bot dm             accept every match invite and die every 3 s, killed by the others\n"
+		"  --start-match MODE   (host) open a deathmatch (dm) or team deathmatch (tdm) when\n"
+		"                       someone joins\n"
 		"  --start-race ROUTE   (host) open a race on ROUTE (a .route file, or a name for\n"
 		"                       a built-in 3-checkpoint test sprint) when someone joins\n"
 		"\n"
@@ -562,6 +774,7 @@ main(int argc, char **argv)
 	SFakeOptions opts;
 	memset(&opts, 0, sizeof(opts));
 	opts.name = "Player";
+	opts.startMatch = -1;
 	opts.at[2] = 10.0f;
 	opts.model = 132;	// TODO verify in-game
 	bool haveRelay = false;
@@ -591,8 +804,8 @@ main(int argc, char **argv)
 			opts.say = next;
 			i++;
 		}else if(strcmp(a, "--bot") == 0 && next){
-			if(strcmp(next, "walk") != 0 && strcmp(next, "drive") != 0 && strcmp(next, "race") != 0){
-				fprintf(stderr, "revc-fakeclient: --bot needs walk, drive or race\n");
+			if(strcmp(next, "walk") != 0 && strcmp(next, "drive") != 0 && strcmp(next, "race") != 0 && strcmp(next, "dm") != 0){
+				fprintf(stderr, "revc-fakeclient: --bot needs walk, drive, race or dm\n");
 				return 2;
 			}
 			opts.bot = next;
@@ -611,6 +824,16 @@ main(int argc, char **argv)
 				return 2;
 			}
 			opts.model = (uint16_t)m;
+			i++;
+		}else if(strcmp(a, "--start-match") == 0 && next){
+			if(strcmp(next, "dm") == 0)
+				opts.startMatch = MATCH_DM;
+			else if(strcmp(next, "tdm") == 0)
+				opts.startMatch = MATCH_TDM;
+			else{
+				fprintf(stderr, "revc-fakeclient: --start-match needs dm or tdm\n");
+				return 2;
+			}
 			i++;
 		}else if(strcmp(a, "--start-race") == 0 && next){
 			opts.startRace = next;
@@ -637,7 +860,7 @@ main(int argc, char **argv)
 
 	signal(SIGINT, OnSignal);
 	signal(SIGTERM, OnSignal);
-	if(opts.bot && strcmp(opts.bot, "race") != 0){
+	if(opts.bot && strcmp(opts.bot, "race") != 0 && strcmp(opts.bot, "dm") != 0){
 		CFakeBot bot(opts);
 		return RunFakeClient(opts, [&bot](CNetClient &client, uint32_t now){ bot.Tick(client, now); });
 	}

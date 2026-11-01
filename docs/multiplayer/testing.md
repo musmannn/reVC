@@ -131,3 +131,21 @@ whole race runs without the game: relay + `revc-fakeclient --host --start-race "
   - [ ] **Bridge Run**: sprint from Ocean Beach across a bridge to Downtown.
   - [ ] **Little Havana Circuit**: circuit, 2 laps, through Little Havana / Little Haiti.
   - Each: 8 grid slots about 4 m apart sideways and 8 m back, 8–20 checkpoints, a sports car; every checkpoint reachable and no grid slot inside a building.
+
+## Plan 4: deathmatch, team deathmatch, scoreboards (milestone 2)
+
+Match rules and the match host are unit tested, and whole matches run with fake
+clients: relay + `revc-fakeclient --host --start-match tdm` + several
+`revc-fakeclient --join CODE --bot dm`. These checks need the game:
+
+- [ ] F2 → *Start match >* → Deathmatch / Team Deathmatch posts an invite to everyone; F3 joins; fewer than 2 players cancels it.
+- [ ] At the start everyone is put on the spawn points with pistol, Uzi, shotgun, full health and armour, frozen through 3-2-1-FIGHT.
+- [ ] Kills count on the HUD (SCORE n/20, POS) and the Tab scoreboard; dying respawns you with the match loadout.
+- [ ] Suicide (e.g. your own grenade) costs a point.
+- [ ] Team deathmatch: name tags are red/blue; shooting a teammate does nothing; the HUD shows RED n / BLUE n.
+- [ ] The match ends at the kill limit or after 10 minutes, everyone sees the same results panel, and the chat says who won.
+- [ ] A player leaving mid-match keeps their score on the board; the last opponent leaving ends it.
+- [ ] Starting a race during a match (or the other way round) says "already on".
+- [ ] Tab outside a match shows the session code and who's in it.
+- [ ] Tab is also the on-foot "action" key in the default controls (pick up / answer phone). Check that holding it for the scoreboard doesn't get in the way; if it does, move the scoreboard to another key.
+- [ ] F2 is blocked while you're in a match.
