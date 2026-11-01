@@ -76,5 +76,9 @@ int MpWriteRoute(const SRaceRoute &route, char *out, uint32_t size);
 
 static inline bool MpIsArena(const SRaceRoute &route) { return route.type == RACE_ARENA; }
 
+// Reads and parses a .route file with stdio (tools and the server; the game
+// goes through CFileMgr). On failure a reason in err.
+bool MpLoadRouteFile(const char *path, SRaceRoute &out, char *err, uint32_t errSize);
+
 // Checkpoint crossings needed to finish: numCheckpoints, times laps for a circuit.
 uint16_t MpRouteTotalCrossings(const SRaceRoute &route);

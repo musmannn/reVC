@@ -74,7 +74,7 @@ jobs:
         run: |
           mkdir -p package
           cp -R gamefiles/* package/
-          cp build/src/reVC build/mp/revc-relay build/mp/revc-fakeclient package/
+          cp build/src/reVC build/mp/revc-relay build/mp/revc-server build/mp/revc-fakeclient package/
           cp docs/multiplayer/install.md package/INSTALL-MULTIPLAYER.md
       - uses: actions/upload-artifact@v4
         with:
@@ -99,7 +99,7 @@ jobs:
           mkdir -p package
           cp -R gamefiles/* package/
           if [ -d build/src/reVC.app ]; then cp -R build/src/reVC.app package/; else cp build/src/reVC package/; fi
-          cp build/mp/revc-relay build/mp/revc-fakeclient package/
+          cp build/mp/revc-relay build/mp/revc-server build/mp/revc-fakeclient package/
           cp docs/multiplayer/install.md package/INSTALL-MULTIPLAYER.md
       - uses: actions/upload-artifact@v4
         with:
@@ -133,7 +133,7 @@ jobs:
       - name: Build relay and fake client
         run: |
           cmake -S mp -B build-mp
-          cmake --build build-mp --config Release --target revc-relay revc-fakeclient
+          cmake --build build-mp --config Release --target revc-relay revc-server revc-fakeclient
       - name: Package
         shell: pwsh
         run: |
@@ -142,7 +142,7 @@ jobs:
           Copy-Item bin/${{ matrix.platform }}/Release/reVC.exe package/
           Copy-Item vendor/mpg123/dist/Win64/libmpg123-0.dll package/
           Copy-Item vendor/openal-soft/dist/Win64/OpenAL32.dll package/
-          Copy-Item build-mp/Release/revc-relay.exe, build-mp/Release/revc-fakeclient.exe package/
+          Copy-Item build-mp/Release/revc-relay.exe, build-mp/Release/revc-server.exe, build-mp/Release/revc-fakeclient.exe package/
           Copy-Item docs/multiplayer/install.md package/INSTALL-MULTIPLAYER.md
       - uses: actions/upload-artifact@v4
         with:

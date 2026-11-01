@@ -292,6 +292,21 @@ MpWriteRoute(const SRaceRoute &route, char *out, uint32_t size)
 	return (int)n;
 }
 
+bool
+MpLoadRouteFile(const char *path, SRaceRoute &out, char *err, uint32_t errSize)
+{
+	FILE *f = fopen(path, "rb");
+	if(f == nullptr){
+		SetError(err, errSize, "can't open it");
+		return false;
+	}
+	static char text[64 * 1024];
+	size_t n = fread(text, 1, sizeof(text) - 1, f);
+	fclose(f);
+	text[n] = '\0';
+	return MpParseRoute(text, out, err, errSize);
+}
+
 uint16_t
 MpRouteTotalCrossings(const SRaceRoute &route)
 {

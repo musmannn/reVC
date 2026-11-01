@@ -89,6 +89,7 @@ add_library(mpcommon STATIC
 	common/RouteEditor.cpp
 	common/HillLogic.cpp
 	common/StuntLogic.cpp
+	common/SeatTable.cpp
 )
 target_include_directories(mpcommon PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/common)
 target_link_libraries(mpcommon PUBLIC enet)
@@ -111,11 +112,25 @@ add_executable(revc-relay
 target_link_libraries(revc-relay PRIVATE relaycore)
 mp_target_settings(revc-relay)
 
+# --- Dedicated server ---------------------------------------------------------
+find_package(Threads REQUIRED)
+add_library(servercore STATIC
+	server/DedicatedHost.cpp
+)
+target_include_directories(servercore PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/server)
+target_link_libraries(servercore PUBLIC mpcommon)
+mp_target_settings(servercore)
+
+add_executable(revc-server
+	server/main.cpp
+)
+target_link_libraries(revc-server PRIVATE servercore relaycore Threads::Threads)
+mp_target_settings(revc-server)
+
 # --- Tools ------------------------------------------------------------------
 add_executable(revc-fakeclient
 	tools/fakeclient.cpp
 )
-find_package(Threads REQUIRED)
 target_link_libraries(revc-fakeclient PRIVATE mpcommon Threads::Threads)
 mp_target_settings(revc-fakeclient)
 
@@ -136,8 +151,9 @@ add_executable(mp_tests
 	tests/test_matchhost.cpp
 	tests/test_routeeditor.cpp
 	tests/test_modes.cpp
+	tests/test_server.cpp
 )
 target_include_directories(mp_tests PRIVATE ${MP_VENDOR_DIR}/doctest)
-target_link_libraries(mp_tests PRIVATE relaycore mpcommon Threads::Threads)
+target_link_libraries(mp_tests PRIVATE servercore relaycore mpcommon Threads::Threads)
 mp_target_settings(mp_tests)
 add_test(NAME mp_tests COMMAND mp_tests)
