@@ -509,7 +509,7 @@ static_assert(false, "SUPPORT_XBOX_SCRIPT and SUPPORT_MOBILE_SCRIPT are mutually
 	#define MULTIPLAYER
 #endif
 
-// "made by usman" entry at the bottom of the start menu. The entry lives in MenuScreensCustom.cpp.
+// "made by usman" as the start menu title (top right). The page lives in MenuScreensCustom.cpp.
 #ifdef CUSTOM_FRONTEND_OPTIONS
 	#define MADE_BY_TEXT
 #endif
