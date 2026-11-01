@@ -37,6 +37,9 @@
 #include "Font.h"
 #include "Frontend.h"
 #include "VarConsole.h"
+#ifdef MULTIPLAYER
+#include "NetGame.h"
+#endif
 
 bool CStreaming::ms_disableStreaming;
 bool CStreaming::ms_bLoadingBigModel;
@@ -2469,6 +2472,10 @@ CStreaming::LoadAllRequestedModels(bool priority)
 		if(streamId == -1)
 			break;
 
+#ifdef MULTIPLAYER
+		// A big load can take seconds; keep a session alive meanwhile.
+		CNetGame::KeepAliveWhileLoading();
+#endif
 		ms_aInfoForModel[streamId].RemoveFromList();
 		ms_channel[0].streamIds[0] = streamId;
 		DecrementRef(streamId);

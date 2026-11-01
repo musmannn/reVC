@@ -29,6 +29,11 @@ public:
 	// frontend and from the loading screen.
 	static void Service(void);
 	static void ServiceDuringLoad(void);
+	// Called from long engine loops (CStreaming::LoadAllRequestedModels).
+	// While the multiplayer world is loading, services the network at most
+	// every 100 ms so a slow first load can't time the session out. Does
+	// nothing once the world is running: then the frame loop services it.
+	static void KeepAliveWhileLoading(void);
 	// Simulation sync. Called only while the game isn't paused.
 	static void Process(void);
 	static void Render2d(void);

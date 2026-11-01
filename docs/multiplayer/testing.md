@@ -28,13 +28,15 @@ sudo tc qdisc add dev lo root netem delay 75ms
 
 ## Plan 2, Task 3: session lifecycle and world start
 
-- [ ] The host gets a `VICE-XXXX` code and spawns in Ocean Beach with a bat and a pistol.
+- [ ] The host gets a `VICE-XXXX` code and spawns on Washington Beach (around 79.7, -867.3) with a bat and a pistol.
 - [ ] `revc-fakeclient --join CODE --name Lance` makes Lance appear in the session.
 - [ ] Pause for 30 s: the fake client stays connected and nobody times out.
 - [ ] Killing the relay shows "Connection lost" and opens the frontend menu.
 - [ ] With no session, New Game still runs the story normally (main.scm, intro).
 - [ ] Holding `R`/`D` at New Game still picks the debug scripts as before.
-- [ ] Spawn point coordinates in `src/multiplayer/SpawnPoints.cpp` are on the ground near the Ocean View Hotel (they're placeholders).
+- [ ] Spawn points (`src/multiplayer/SpawnPoints.cpp`, a 3 m ring around the start `freeroam_miami.scm` uses) are on open ground: nobody spawns inside or on top of anything, and 8 players all get a free spot.
+- [ ] The Multiplayer page opens with *Name* selected; the *Session* status row is at the bottom.
+- [ ] Hosting on a cold start (first run, no shader cache) doesn't lose the session while the world loads; the relay log shows no `lost` for the host.
 
 ## Plan 2, Task 4: Multiplayer frontend page
 

@@ -52,7 +52,7 @@ revisited with a reason.
 | 2026-10-31 | `MSG_PLAYER_LEFT.reason` is `eLeaveReason` (`LEAVE_QUIT` / `LEAVE_LOST`). Clients send ENet disconnect data `MP_DISCONNECT_QUIT` when leaving on purpose. | Builder call |
 | 2026-10-31 | Duplicate names are compared case-insensitively. The base name is shortened so `name (n)` fits in 23 chars. | Builder call |
 | 2026-10-31 | Ping/pong are unreliable. `CSessionClock` ignores samples with a negative RTT or one above 10 s, and `RttMs()` is the latest sample's RTT. | Builder call |
-| 2026-10-31 | The relay drops connections that don't send create/join within 10 s. The ENet peer timeout is 5–15 s, so a crashed host ends its session within 15 s. | Builder call |
+| 2026-10-31 | The relay drops connections that don't send create/join within 10 s. The ENet peer timeout was 5–15 s (superseded below). | Builder call |
 | 2026-10-31 | `MULTIPLAYER` also needs `CUSTOM_FRONTEND_OPTIONS` (the menu page is a CFO page), and the build defines `NO_MULTIPLAYER` when `mp/` isn't part of it, so `REVC_MULTIPLAYER=OFF` builds plain single player. | Builder call |
 | 2026-10-31 | Multiplayer menu text keys are at most 7 characters (`CMenuEntry::m_EntryName` is `char[8]`): `MP_RLAY` and `MP_LEAV` instead of the plan's `MP_RELAY`/`MP_LEAVE`, plus `MP_STAT` for the session row. | Builder call |
 | 2026-10-31 | A session becoming ready starts the world through `DoSettingsBeforeStartingAGame` (the New Game path). When it ends, the frontend opens; the offline world stays loaded instead of a forced return to the start menu (VC has no in-game "quit to main menu"). | Builder call |
@@ -83,6 +83,10 @@ revisited with a reason.
 | 2026-10-31 | `vendor/enet` also keeps ENet's `README` and `ChangeLog`, and `vendor/doctest` keeps `LICENSE.txt`, next to the plan's files. All are unmodified copies of the tags. | Builder call |
 | 2026-10-31 | `CNetClient` detects a re-entrant `Host()`/`Join()` from inside a callback with a generation counter. Comparing `ENetHost` pointers failed on macOS, where malloc reuses the address. | Builder call |
 | 2026-10-31 | Relay hardening beyond the plan: ENet `maximumPacketSize` 2 KB and `maximumWaitingData` 64 KB (the defaults allow 32 MB per peer), at most 16 connections per IP (`SRelayConfig::maxPeersPerAddress`, an added field), and at most 4096 events per `Service()`. A member that stops acknowledging skips snapshots once half of `maxQueuedPerPeer` (2048) reliable commands are queued for it, and is dropped past the limit. Each IP gets 10 joins with an unknown code per minute (`maxFailedJoinsPerMinute`), so invite codes can't be guessed. | Builder call |
+| 2026-11-01 | ENet peer timeouts are 15–30 s on both the relay and the client (`MP_PEER_TIMEOUT_MIN_MS`/`MAX_MS` in `Protocol.h`), up from 5–15 s: an in-game test lost the host 6 s into its first world load. A crashed host now ends its session within 30 s. The relay's "stops acknowledging" drop (2048 queued commands) is unaffected: a lone host loading the world has almost nothing queued. | Builder call |
+| 2026-11-01 | While a multiplayer world is loading (`!sInGame`), `CStreaming::LoadAllRequestedModels` services the network every 100 ms (`CNetGame::KeepAliveWhileLoading`), on top of the loading-screen servicing. It never runs once the world is up, so game messages are never dispatched mid-frame. | Builder call |
+| 2026-11-01 | Spawn points are a 3 m ring around the start `freeroam_miami.scm` itself uses (79.69, −867.25, ground ≈ 10.5, Washington Beach). Each spot is checked with `FindGroundZFor3DCoord` and `TestSphereAgainstWorld`, and a blocked one falls through to the next, instead of hand-picked coordinates (the old ones put the host in a bus shelter). | Builder call |
+| 2026-11-01 | The Multiplayer page's read-only *Session* row moved to the bottom, so the page opens with *Name* selected. | Builder call |
 
 ## Race routes
 
@@ -208,7 +212,7 @@ Track anything waiting on the owner here, and remove it once answered.
 
 - The default relay is `MP_DEFAULT_RELAY` = `127.0.0.1:7777` in `src/multiplayer/NetGame.h` until the cloud VPS exists. It's a one-line change.
 - The 4 built-in race routes (Ocean Drive Sprint, Starfish Loop, Bridge Run, Little Havana Circuit) aren't recorded yet. Record them in-game with `/rec` and list them in `gamefiles/data/mp/races/index.txt`.
-- Placeholders that need the game to check: the spawn points (`src/multiplayer/SpawnPoints.cpp`), the default remote-player skins (`sDefaultSkins` in `RemotePlayer.cpp`) and the fake client's `--bot drive` model (132).
+- Placeholders that need the game to check: the default remote-player skins (`sDefaultSkins` in `RemotePlayer.cpp`) and the fake client's `--bot drive` model (132).
 
 - GTA Vice City isn't installed on the dev machine yet. In-game testing waits
   for it. Until then, verify with unit tests and the headless fake client.

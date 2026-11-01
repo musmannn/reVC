@@ -70,8 +70,8 @@ CNetClient::Connect(const char *relayAddr, uint16_t port)
 		Close(false);
 		return false;
 	}
-	// Notice a dead relay within 15 s, like the relay notices a dead client.
-	enet_peer_timeout(m_peer, 0, 5000, 15000);
+	// Same timeouts as the relay uses for clients.
+	enet_peer_timeout(m_peer, 0, MP_PEER_TIMEOUT_MIN_MS, MP_PEER_TIMEOUT_MAX_MS);
 	m_state = STATE_CONNECTING;
 	m_generation++;
 	m_isHost = false;

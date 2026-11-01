@@ -310,6 +310,19 @@ CNetGame::ServiceDuringLoad(void)
 }
 
 void
+CNetGame::KeepAliveWhileLoading(void)
+{
+	static uint32 lastMs;
+	if(sInGame || sLoading || !sClient.IsActive())
+		return;
+	uint32 now = NetNow();
+	if(now - lastMs < 100)
+		return;
+	lastMs = now;
+	ServiceDuringLoad();
+}
+
+void
 CNetGame::Service(void)
 {
 	if(sLoading)

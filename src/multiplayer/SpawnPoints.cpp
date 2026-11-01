@@ -7,32 +7,55 @@
 #include "Streaming.h"
 #include "WeaponInfo.h"
 #include "General.h"
+#include "World.h"
 
-struct SSpawnPoint
+// The free-roam start that freeroam_miami.scm itself uses (CREATE_PLAYER at
+// 79.69 -867.25 with "find the ground", LOAD_SCENE at z 10.5): open ground on
+// Washington Beach that the original script picked. Players spread out on a
+// ring around it; each candidate spot is checked against the world, so a spot
+// that lands in or on something falls through to the next one.
+static const CVector sAnchor(79.69f, -867.25f, 10.5f);
+static const float SPAWN_RADIUS = 3.0f;	// metres from the anchor
+static const int NUM_SLOTS = 8;
+// Ground further than this from the anchor's is a roof or a hole, not the beach.
+static const float MAX_GROUND_DIFF = 2.0f;
+
+// Ground z under (x, y) near the anchor's height, or false if there's no
+// usable ground or the spot is blocked.
+static bool
+TrySpot(float x, float y, CVector &out)
 {
-	float x, y, z;
-	float headingDeg;
-};
-
-// Around the Ocean View Hotel, Ocean Beach.
-// TODO verify in-game: placeholder coordinates until the game is installed.
-static const SSpawnPoint sSpawnPoints[] = {
-	{ 228.0f, -1276.0f, 12.0f, 90.0f },
-	{ 228.0f, -1280.0f, 12.0f, 90.0f },
-	{ 224.0f, -1276.0f, 12.0f, 90.0f },
-	{ 224.0f, -1280.0f, 12.0f, 90.0f },
-	{ 232.0f, -1276.0f, 12.0f, 90.0f },
-	{ 232.0f, -1280.0f, 12.0f, 90.0f },
-	{ 228.0f, -1284.0f, 12.0f, 90.0f },
-	{ 224.0f, -1284.0f, 12.0f, 90.0f },
-};
+	bool found = false;
+	float z = CWorld::FindGroundZFor3DCoord(x, y, sAnchor.z + MAX_GROUND_DIFF, &found);
+	if(!found || Abs(z - sAnchor.z) > MAX_GROUND_DIFF)
+		return false;
+	CVector pos(x, y, z + 1.0f);	// ped centre
+	if(CWorld::TestSphereAgainstWorld(pos, 0.6f, nil, true, true, false, true, false, false))
+		return false;
+	out = pos;
+	return true;
+}
 
 void
 CSpawnPoints::Pick(uint8 playerId, CVector &pos, float &heading)
 {
-	const SSpawnPoint &p = sSpawnPoints[playerId % ARRAY_SIZE(sSpawnPoints)];
-	pos = CVector(p.x, p.y, p.z);
-	heading = DEGTORAD(p.headingDeg);
+	// Respawns can happen far from here, so make sure the ground is loaded.
+	CStreaming::LoadSceneCollision(sAnchor);
+	int first = playerId % NUM_SLOTS;
+	// This player's own slot first, then the others, then the anchor itself.
+	for(int i = 0; i < NUM_SLOTS; i++){
+		float angle = (float)((first + i) % NUM_SLOTS) * (TWOPI / NUM_SLOTS);
+		float dx = Cos(angle) * SPAWN_RADIUS;
+		float dy = Sin(angle) * SPAWN_RADIUS;
+		if(TrySpot(sAnchor.x + dx, sAnchor.y + dy, pos)){
+			// Face the anchor: a ped faces (-sin h, cos h).
+			heading = CGeneral::LimitRadianAngle(Atan2(dx, -dy));
+			return;
+		}
+	}
+	if(!TrySpot(sAnchor.x, sAnchor.y, pos))
+		pos = CVector(sAnchor.x, sAnchor.y, sAnchor.z + 1.0f);
+	heading = 0.0f;
 }
 
 void

@@ -62,6 +62,14 @@ enum eLeaveReason
 // ENet disconnect data a client sends when it leaves on purpose.
 static const uint32_t MP_DISCONNECT_QUIT = 1;
 
+// ENet peer timeouts, used by both the relay and the client. A peer that
+// stops acknowledging is dropped after MP_PEER_TIMEOUT_MIN_MS at the earliest
+// and MP_PEER_TIMEOUT_MAX_MS at the latest. The floor is generous because a
+// game can stall for several seconds while it loads the world (ENet's own
+// default is 5 s, which a slow first load can exceed).
+static const uint32_t MP_PEER_TIMEOUT_MIN_MS = 15000;
+static const uint32_t MP_PEER_TIMEOUT_MAX_MS = 30000;
+
 struct SEnvelope
 {
 	uint8_t route;

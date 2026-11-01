@@ -25,9 +25,6 @@ static const uint32_t MP_RELAY_MAX_WAITING_DATA = 64 * 1024;
 // At most this many events per Service() call, so a flood can't starve the
 // caller's loop (housekeeping, Ctrl+C).
 static const uint32_t MAX_EVENTS_PER_SERVICE = 4096;
-// Peer timeouts: a crashed host is noticed within ENET_TIMEOUT_MAX_MS.
-static const uint32_t ENET_TIMEOUT_MIN_MS = 5000;
-static const uint32_t ENET_TIMEOUT_MAX_MS = 15000;
 
 void
 MpRelayLog(const char *fmt, ...)
@@ -263,7 +260,8 @@ CRelayServer::OnConnect(ENetPeer *peer)
 		strcpy(p.addr, "?");
 	size_t len = strlen(p.addr);
 	snprintf(p.addr + len, sizeof(p.addr) - len, ":%u", (unsigned)peer->address.port);
-	enet_peer_timeout(peer, 0, ENET_TIMEOUT_MIN_MS, ENET_TIMEOUT_MAX_MS);
+	// A crashed host is noticed within MP_PEER_TIMEOUT_MAX_MS.
+	enet_peer_timeout(peer, 0, MP_PEER_TIMEOUT_MIN_MS, MP_PEER_TIMEOUT_MAX_MS);
 	m_numPeers++;
 }
 
