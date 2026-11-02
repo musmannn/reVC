@@ -178,3 +178,47 @@ reported times aren't validated (no anti-cheat).
   scoreboards.
 - **Milestone 3:** More modes (e.g. stunt challenges, capture-style modes), a
   race route editor, and a standalone dedicated server.
+
+## Milestone 3 addition (2026-11-01, builder calls)
+
+The owner asked for milestone 3 to be done ("complete the full multiplayer
+game") without fixing its details, so everything in this section is a builder
+call, logged in `docs/multiplayer/README.md` and open to change. Plan 5 has the
+messages and tasks.
+
+**Dedicated server.** `revc-server` is a headless program that hosts a session
+instead of a player's game. It connects to a relay like any client (or runs
+the relay itself, in the same process, with `--with-relay PORT`), creates the
+session with a *dedicated* flag, and takes player id 0, so a dedicated session
+has room for 7 players. It does everything the host's game does that isn't
+about its own ped: the session clock, time and weather, seat arbitration for
+vehicles, races and matches (including a playlist that starts events on its
+own), and catch-up for late joiners. It never shows up in the world. Games
+learn that a session is dedicated from the join result, so they don't create a
+ped, blip or name tag for id 0.
+
+**Routes travel with the race.** Race and arena data is sent inside the
+request and the invite, so a route only has to exist on the requester's
+machine. This is what makes the editor useful (a fresh route can be raced at
+once) and lets a dedicated server run without the game's data files.
+
+**Route editor.** The `/rec` chat recorder becomes an editor: load an existing
+route, insert, move and delete checkpoints and grid slots, change radii, list
+them, undo several steps, preview every checkpoint in the world while
+editing, and test-race the unsaved route with the session. The same editor
+authors **arenas** (`type arena`): spawn points and "hill" points for the new
+modes, and spawns for deathmatch.
+
+**More modes**, as new match modes on the deathmatch framework (invite, accept,
+countdown, scores, results, scoreboard):
+
+- **Hold the Hill** (free for all) and **Team Hold the Hill**: a hill zone moves
+  between an arena's hill points every minute; standing in it with no enemy
+  inside scores a point per second. Kills are counted but don't score.
+- **Stunt Challenge**: everyone gets the arena's vehicle and has 4 minutes to
+  score stunt points. Points come from airtime, distance, height, flips and
+  spins, and only count on a clean landing. The player's own game measures
+  the stunt (trusted, like race crossings) and reports it.
+
+Still out of scope: a public server browser, matchmaking with strangers,
+anti-cheat, persistent stats.

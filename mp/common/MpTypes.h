@@ -5,7 +5,7 @@
 
 #include <stdint.h>
 
-static const uint16_t MP_PROTOCOL_VERSION = 1;
+static const uint16_t MP_PROTOCOL_VERSION = 2;
 static const uint32_t MP_MAX_PLAYERS = 8;		// host included
 static const uint16_t MP_DEFAULT_RELAY_PORT = 7777;
 static const uint32_t MP_SNAPSHOT_HZ = 20;

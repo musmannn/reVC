@@ -41,9 +41,8 @@ CRaceHost::Request(uint8_t from, const SRaceRoute &route, bool starterRaces, uin
 
 	SRaceInvite invite;
 	invite.raceId = m_raceId;
-	invite.startedBy = from;
-	strcpy(invite.route, route.name);
-	invite.deadline = m_deadline;
+	m_startedBy = from;
+	GetInvite(invite);
 	sink->SendInvite(invite);
 	return true;
 }
@@ -54,8 +53,8 @@ CRaceHost::GetInvite(SRaceInvite &out) const
 	if(m_state != STATE_INVITING)
 		return false;
 	out.raceId = m_raceId;
-	out.startedBy = m_numAccepted > 0 ? m_accepted[0] : MP_PLAYER_NONE;
-	strcpy(out.route, m_route.name);
+	out.startedBy = m_startedBy;
+	out.route = m_route;
 	out.deadline = m_deadline;
 	return true;
 }

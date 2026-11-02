@@ -1,5 +1,7 @@
 #include "GameProtocol.h"
 
+#include <math.h>
+
 #include <string.h>
 
 static void
@@ -263,13 +265,13 @@ void
 SRaceRequest::Write(CByteWriter &w) const
 {
 	w.WriteU8(GMSG_RACE_REQUEST);
-	w.WriteString(route, MP_MAX_ROUTE_NAME);
+	MpWriteRouteData(w, route);
 }
 
 bool
 SRaceRequest::Read(CByteReader &r)
 {
-	return r.ReadString(route, sizeof(route));
+	return MpReadRouteData(r, route) && route.type != RACE_ARENA;
 }
 
 void
@@ -278,14 +280,15 @@ SRaceInvite::Write(CByteWriter &w) const
 	w.WriteU8(GMSG_RACE_INVITE);
 	w.WriteU16(raceId);
 	w.WriteU8(startedBy);
-	w.WriteString(route, MP_MAX_ROUTE_NAME);
 	w.WriteU32(deadline);
+	MpWriteRouteData(w, route);
 }
 
 bool
 SRaceInvite::Read(CByteReader &r)
 {
-	return r.ReadU16(raceId) && r.ReadU8(startedBy) && r.ReadString(route, sizeof(route)) && r.ReadU32(deadline);
+	return r.ReadU16(raceId) && r.ReadU8(startedBy) && r.ReadU32(deadline) && MpReadRouteData(r, route) &&
+		route.type != RACE_ARENA;
 }
 
 void
@@ -381,12 +384,30 @@ SMatchRequest::Write(CByteWriter &w) const
 {
 	w.WriteU8(GMSG_MATCH_REQUEST);
 	w.WriteU8(mode);
+	w.WriteU8(hasArena ? 1 : 0);
+	if(hasArena)
+		MpWriteRouteData(w, arena);
+}
+
+// An optional arena: u8 present, then the route data (type arena only).
+static bool
+ReadArena(CByteReader &r, bool &has, SRaceRoute &arena)
+{
+	uint8_t present;
+	if(!r.ReadU8(present) || present > 1)
+		return false;
+	has = present != 0;
+	if(!has){
+		memset(&arena, 0, sizeof(arena));
+		return true;
+	}
+	return MpReadRouteData(r, arena) && arena.type == RACE_ARENA;
 }
 
 bool
 SMatchRequest::Read(CByteReader &r)
 {
-	return r.ReadU8(mode);
+	return r.ReadU8(mode) && ReadArena(r, hasArena, arena);
 }
 
 void
@@ -399,13 +420,16 @@ SMatchInvite::Write(CByteWriter &w) const
 	w.WriteU16(scoreLimit);
 	w.WriteU32(timeLimitMs);
 	w.WriteU32(deadline);
+	w.WriteU8(hasArena ? 1 : 0);
+	if(hasArena)
+		MpWriteRouteData(w, arena);
 }
 
 bool
 SMatchInvite::Read(CByteReader &r)
 {
 	return r.ReadU16(matchId) && r.ReadU8(mode) && r.ReadU8(startedBy) && r.ReadU16(scoreLimit) &&
-		r.ReadU32(timeLimitMs) && r.ReadU32(deadline);
+		r.ReadU32(timeLimitMs) && r.ReadU32(deadline) && ReadArena(r, hasArena, arena);
 }
 
 void
@@ -494,4 +518,98 @@ bool
 SMatchCancel::Read(CByteReader &r)
 {
 	return r.ReadU16(matchId) && r.ReadU8(reason);
+}
+
+// ---- Route data
+
+static int16_t
+PackCoord(float v)
+{
+	float q = v * 8.0f;
+	q = q < -32767.0f ? -32767.0f : q > 32767.0f ? 32767.0f : q;
+	return (int16_t)(q < 0.0f ? q - 0.5f : q + 0.5f);
+}
+
+static float
+UnpackCoord(int16_t v)
+{
+	return (float)v / 8.0f;
+}
+
+void
+MpWriteRouteData(CByteWriter &w, const SRaceRoute &route)
+{
+	w.WriteString(route.name, MP_MAX_ROUTE_NAME);
+	w.WriteU8(route.type);
+	w.WriteU8(route.laps);
+	w.WriteU16(route.vehicleModel);
+	uint8_t nGrid = route.numGrid > MP_MAX_PLAYERS ? (uint8_t)MP_MAX_PLAYERS : route.numGrid;
+	w.WriteU8(nGrid);
+	for(int i = 0; i < nGrid; i++){
+		const SRaceGridSlot &g = route.grid[i];
+		for(int k = 0; k < 3; k++)
+			w.WriteI16(PackCoord(g.pos[k]));
+		float turns = fmodf(g.heading, 360.0f);
+		if(turns < 0.0f)
+			turns += 360.0f;
+		w.WriteU16((uint16_t)((uint32_t)(turns / 360.0f * 65536.0f + 0.5f) & 0xFFFF));
+	}
+	uint8_t nCp = route.numCheckpoints > MP_MAX_CHECKPOINTS ? (uint8_t)MP_MAX_CHECKPOINTS : route.numCheckpoints;
+	w.WriteU8(nCp);
+	for(int i = 0; i < nCp; i++){
+		const SRaceCheckpoint &c = route.cps[i];
+		for(int k = 0; k < 3; k++)
+			w.WriteI16(PackCoord(c.pos[k]));
+		float halves = c.radius * 2.0f + 0.5f;
+		w.WriteU8((uint8_t)(halves < 1.0f ? 1.0f : halves > 255.0f ? 255.0f : halves));
+	}
+}
+
+bool
+MpReadRouteData(CByteReader &r, SRaceRoute &route)
+{
+	memset(&route, 0, sizeof(route));
+	if(!r.ReadString(route.name, sizeof(route.name)) || !r.ReadU8(route.type) || !r.ReadU8(route.laps) ||
+	   !r.ReadU16(route.vehicleModel) || !r.ReadU8(route.numGrid) || route.numGrid > MP_MAX_PLAYERS)
+		return false;
+	for(int i = 0; i < route.numGrid; i++){
+		int16_t v[3];
+		uint16_t h;
+		if(!r.ReadI16(v[0]) || !r.ReadI16(v[1]) || !r.ReadI16(v[2]) || !r.ReadU16(h))
+			return false;
+		for(int k = 0; k < 3; k++)
+			route.grid[i].pos[k] = UnpackCoord(v[k]);
+		route.grid[i].heading = (float)h * (360.0f / 65536.0f);
+	}
+	if(!r.ReadU8(route.numCheckpoints) || route.numCheckpoints > MP_MAX_CHECKPOINTS)
+		return false;
+	for(int i = 0; i < route.numCheckpoints; i++){
+		int16_t v[3];
+		uint8_t radius;
+		if(!r.ReadI16(v[0]) || !r.ReadI16(v[1]) || !r.ReadI16(v[2]) || !r.ReadU8(radius))
+			return false;
+		for(int k = 0; k < 3; k++)
+			route.cps[i].pos[k] = UnpackCoord(v[k]);
+		route.cps[i].radius = (float)radius / 2.0f;
+	}
+	return MpValidateRoute(route, nullptr, 0);
+}
+
+// ---- Stunts
+
+void
+SStunt::Write(CByteWriter &w) const
+{
+	w.WriteU8(GMSG_STUNT);
+	w.WriteU16(matchId);
+	w.WriteU16(points);
+	w.WriteU16(airMs);
+	w.WriteU8(flips);
+	w.WriteU8(spins);
+}
+
+bool
+SStunt::Read(CByteReader &r)
+{
+	return r.ReadU16(matchId) && r.ReadU16(points) && r.ReadU16(airMs) && r.ReadU8(flips) && r.ReadU8(spins);
 }

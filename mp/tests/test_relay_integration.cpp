@@ -729,3 +729,43 @@ TEST_CASE("relay: failed joins are rate limited per address")
 	CHECK(right.rec.joinFailed == JOIN_NOT_FOUND);
 	CHECK(!right.rec.ready);
 }
+
+TEST_CASE("relay: a client that stalls for a long load stays in the session")
+{
+	// A game can stop servicing the network for several seconds while it
+	// loads the world. That must not drop it (MP_PEER_TIMEOUT_MIN_MS).
+	CHarness h;
+	SNode &host = h.HostNode();
+	SNode &c1 = h.JoinNode(host.rec.code, "Lance");
+	uint32_t start = NowMs();
+	while(NowMs() - start < 8000){
+		// Everyone but the stalled host keeps going.
+		h.relay.Service(0);
+		c1.client.Service(NowMs(), &c1.rec);
+		std::this_thread::sleep_for(std::chrono::milliseconds(2));
+	}
+	h.PumpFor(500);
+	CHECK(host.client.IsInSession());
+	CHECK(!host.rec.lost);
+	CHECK(c1.client.IsInSession());
+	CHECK(c1.rec.ended < 0);
+	CHECK(h.relay.NumSessions() == 1);
+}
+
+TEST_CASE("relay: a dedicated session's flag reaches joiners")
+{
+	CHarness h;
+	SNode &server = h.Add();
+	REQUIRE(server.client.Host("127.0.0.1", h.port, "Server", MP_SESSION_DEDICATED | 0x80));
+	REQUIRE(h.Pump([&](){ return server.rec.ready; }));
+	CHECK(server.client.IsDedicatedSession());
+	SNode &c1 = h.JoinNode(server.rec.code, "Lance");
+	REQUIRE(c1.rec.ready);
+	CHECK(c1.client.IsDedicatedSession());
+	CHECK(c1.client.SessionFlags() == MP_SESSION_DEDICATED);	// unknown bits dropped
+
+	SNode &other = h.HostNode("Tommy");
+	SNode &c2 = h.JoinNode(other.rec.code, "Ken");
+	CHECK(!other.client.IsDedicatedSession());
+	CHECK(!c2.client.IsDedicatedSession());
+}

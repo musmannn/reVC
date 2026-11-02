@@ -21,12 +21,13 @@ SMsgCreateSession::Write(CByteWriter &w) const
 	w.WriteU8(MSG_CREATE_SESSION);
 	w.WriteU16(version);
 	w.WriteString(name, MP_MAX_NAME_LEN);
+	w.WriteU8(flags);
 }
 
 bool
 SMsgCreateSession::Read(CByteReader &r)
 {
-	return r.ReadU16(version) && r.ReadString(name, sizeof(name));
+	return r.ReadU16(version) && r.ReadString(name, sizeof(name)) && r.ReadU8(flags);
 }
 
 void
@@ -64,12 +65,13 @@ SMsgJoinResult::Write(CByteWriter &w) const
 	w.WriteU8(MSG_JOIN_RESULT);
 	w.WriteU8(result);
 	w.WriteU8(playerId);
+	w.WriteU8(flags);
 }
 
 bool
 SMsgJoinResult::Read(CByteReader &r)
 {
-	return r.ReadU8(result) && r.ReadU8(playerId);
+	return r.ReadU8(result) && r.ReadU8(playerId) && r.ReadU8(flags);
 }
 
 void

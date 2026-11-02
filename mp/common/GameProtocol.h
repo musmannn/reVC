@@ -1,6 +1,6 @@
 #pragma once
 
-// Game messages (types 64..95) carried opaquely by CNetClient::SendGame and
+// Game messages (types 64..96) carried opaquely by CNetClient::SendGame and
 // INetClientListener::OnGameMessage. Engine-free so they're unit tested and
 // usable by the fake client.
 //
@@ -8,6 +8,7 @@
 // MILLISECOND, quats (x, y, z, w), headings in radians, times in session ms.
 
 #include <stdint.h>
+#include <string.h>
 
 #include "MpTypes.h"
 #include "ByteStream.h"
@@ -49,7 +50,9 @@ enum eGameMsg : uint8_t
 	GMSG_MATCH_SCORES = 92,		// host -> all, 2 Hz, unreliable
 	GMSG_MATCH_END = 93,		// host -> all, reliable (final scores)
 	GMSG_MATCH_CANCEL = 94,		// host -> all or one
-	GMSG_LAST = 95
+	GMSG_STUNT = 96,		// stunter -> host, reliable (Stunt Challenge)
+	GMSG_MATCH_LAST = 96,
+	GMSG_LAST = 96
 };
 
 static_assert((uint32_t)GMSG_PLAYER_STATE == (uint32_t)MSG_GAME_FIRST, "game messages start at MSG_GAME_FIRST");
@@ -247,15 +250,21 @@ enum eRaceCancelReason
 {
 	RACE_BUSY,		// a race is already pending or running
 	RACE_NO_RACERS,		// nobody accepted
-	RACE_BAD_ROUTE,		// the host lacks that route file
+	RACE_BAD_ROUTE,		// the route failed MpValidateRoute
 	RACE_ABORTED		// the host's world restarted mid-race
 };
 
+// Routes travel inside requests and invites (Plan 5), so a route only has to
+// exist on the requester's machine. Positions are sent in 1/8 m, headings in
+// 1/65536 turn, radii in 1/2 m. Read checks the result with MpValidateRoute.
+void MpWriteRouteData(CByteWriter &w, const SRaceRoute &route);
+bool MpReadRouteData(CByteReader &r, SRaceRoute &route);
+
 struct SRaceRequest
 {
-	char route[MP_MAX_ROUTE_NAME + 1];
+	SRaceRoute route;	// a race type (sprint or circuit)
 
-	SRaceRequest(void) { route[0] = '\0'; }
+	SRaceRequest(void) { memset(&route, 0, sizeof(route)); }
 	void Write(CByteWriter &w) const;
 	bool Read(CByteReader &r);
 };
@@ -263,11 +272,11 @@ struct SRaceRequest
 struct SRaceInvite
 {
 	uint16_t raceId;
-	uint8_t startedBy;
-	char route[MP_MAX_ROUTE_NAME + 1];
+	uint8_t startedBy;	// MP_PLAYER_NONE: the dedicated server's playlist
 	uint32_t deadline;	// session time; accepts after it are ignored
+	SRaceRoute route;	// what's raced
 
-	SRaceInvite(void) : raceId(0), startedBy(MP_PLAYER_NONE), deadline(0) { route[0] = '\0'; }
+	SRaceInvite(void) : raceId(0), startedBy(MP_PLAYER_NONE), deadline(0) { memset(&route, 0, sizeof(route)); }
 	void Write(CByteWriter &w) const;
 	bool Read(CByteReader &r);
 };
@@ -342,14 +351,17 @@ enum eMatchCancelReason
 {
 	MATCH_BUSY,		// a match or race is already on
 	MATCH_NOT_ENOUGH,	// fewer than 2 accepted (or one team empty)
-	MATCH_ABORTED		// the host's world restarted
+	MATCH_ABORTED,		// the host's world restarted
+	MATCH_NO_ARENA		// the mode needs an arena (hills) and got none
 };
 
 struct SMatchRequest
 {
 	uint8_t mode;		// eMatchMode
+	bool hasArena;
+	SRaceRoute arena;	// type arena: spawns, hills, stunt vehicle
 
-	SMatchRequest(void) : mode(MATCH_DM) {}
+	SMatchRequest(void) : mode(MATCH_DM), hasArena(false) { memset(&arena, 0, sizeof(arena)); }
 	void Write(CByteWriter &w) const;
 	bool Read(CByteReader &r);
 };
@@ -362,8 +374,11 @@ struct SMatchInvite
 	uint16_t scoreLimit;
 	uint32_t timeLimitMs;
 	uint32_t deadline;	// session time
+	bool hasArena;
+	SRaceRoute arena;
 
-	SMatchInvite(void) : matchId(0), mode(MATCH_DM), startedBy(MP_PLAYER_NONE), scoreLimit(0), timeLimitMs(0), deadline(0) {}
+	SMatchInvite(void) : matchId(0), mode(MATCH_DM), startedBy(MP_PLAYER_NONE), scoreLimit(0), timeLimitMs(0), deadline(0), hasArena(false)
+		{ memset(&arena, 0, sizeof(arena)); }
 	void Write(CByteWriter &w) const;
 	bool Read(CByteReader &r);
 };
@@ -423,6 +438,20 @@ struct SMatchCancel
 	uint8_t reason;		// eMatchCancelReason
 
 	SMatchCancel(void) : matchId(0), reason(MATCH_BUSY) {}
+	void Write(CByteWriter &w) const;
+	bool Read(CByteReader &r);
+};
+
+// GMSG_STUNT: one landed stunt, measured by the stunter's own game (trusted).
+struct SStunt
+{
+	uint16_t matchId;
+	uint16_t points;
+	uint16_t airMs;
+	uint8_t flips;
+	uint8_t spins;
+
+	SStunt(void) : matchId(0), points(0), airMs(0), flips(0), spins(0) {}
 	void Write(CByteWriter &w) const;
 	bool Read(CByteReader &r);
 };

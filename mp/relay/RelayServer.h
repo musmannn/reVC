@@ -67,6 +67,7 @@ class CRelayServer
 		_ENetPeer *members[MP_MAX_PLAYERS];
 		char names[MP_MAX_PLAYERS][MP_MAX_NAME_LEN + 1];
 		uint32_t numMembers;
+		uint8_t flags;		// MP_SESSION_*, from the creator
 	};
 
 	_ENetHost *m_host;

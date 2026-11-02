@@ -36,7 +36,7 @@ CMatchState::Start(uint8_t mode, const uint8_t *ids, const uint8_t *teams, int n
 		SMatchPlayer &p = m_players[m_numPlayers++];
 		memset(&p, 0, sizeof(p));
 		p.id = ids[i];
-		p.team = mode == MATCH_TDM ? (teams[i] == MP_TEAM_BLUE ? MP_TEAM_BLUE : MP_TEAM_RED) : MP_TEAM_NONE;
+		p.team = MpIsTeamMode(mode) ? (teams[i] == MP_TEAM_BLUE ? MP_TEAM_BLUE : MP_TEAM_RED) : MP_TEAM_NONE;
 	}
 }
 
@@ -80,13 +80,14 @@ CMatchState::CheckOver(void)
 {
 	if(m_over)
 		return;
-	if(m_mode == MATCH_TDM){
-		if(TeamScore(MP_TEAM_RED) >= m_scoreLimit || TeamScore(MP_TEAM_BLUE) >= m_scoreLimit ||
+	bool limit = m_scoreLimit > 0;
+	if(MpIsTeamMode(m_mode)){
+		if((limit && (TeamScore(MP_TEAM_RED) >= m_scoreLimit || TeamScore(MP_TEAM_BLUE) >= m_scoreLimit)) ||
 		   PresentOnTeam(MP_TEAM_RED) == 0 || PresentOnTeam(MP_TEAM_BLUE) == 0)
 			m_over = true;
 	}else{
 		for(int i = 0; i < m_numPlayers; i++)
-			if(m_players[i].score >= m_scoreLimit)
+			if(limit && m_players[i].score >= m_scoreLimit)
 				m_over = true;
 		if(PresentOnTeam(MP_TEAM_NONE) < 2)
 			m_over = true;
@@ -102,19 +103,48 @@ CMatchState::OnDeath(uint8_t victim, uint8_t killer, uint32_t time)
 	if(v == nullptr || v->left)
 		return;
 	v->deaths++;
+	v->dead = true;
 	SMatchPlayer *k = killer != victim ? Find(killer) : nullptr;
 	if(k && k->left)
 		k = nullptr;	// their id may already belong to a newcomer
+	bool deathmatch = m_mode == MATCH_DM || m_mode == MATCH_TDM;
+	if(!deathmatch){
+		// Kills are on the board but points come from the mode.
+		if(k && !(MpIsTeamMode(m_mode) && k->team == v->team))
+			k->kills++;
+		return;
+	}
 	if(killer == MP_PLAYER_NONE || killer == victim)
 		v->score--;			// suicide, fall, drowning...
 	else if(k == nullptr)
 		;				// someone outside the match: just a death
-	else if(m_mode == MATCH_TDM && k->team == v->team)
+	else if(MpIsTeamMode(m_mode) && k->team == v->team)
 		k->score--;			// team kill: no kill, a point off
 	else{
 		k->kills++;
 		k->score++;
 	}
+	CheckOver();
+}
+
+void
+CMatchState::OnRespawned(uint8_t id)
+{
+	SMatchPlayer *p = Find(id);
+	if(p)
+		p->dead = false;
+}
+
+void
+CMatchState::AddPoints(uint8_t id, int points, uint32_t time)
+{
+	if(m_over || m_mode == MATCH_DM || m_mode == MATCH_TDM || TimeDiff(time, m_startTime) < 0)
+		return;
+	SMatchPlayer *p = Find(id);
+	if(p == nullptr || p->left || points <= 0)
+		return;
+	int score = p->score + points;
+	p->score = (int16_t)(score > 32767 ? 32767 : score);
 	CheckOver();
 }
 
@@ -151,7 +181,7 @@ Ahead(const SMatchPlayer &a, const SMatchPlayer &b)
 uint8_t
 CMatchState::WinnerTeam(void) const
 {
-	if(m_mode != MATCH_TDM)
+	if(!MpIsTeamMode(m_mode))
 		return MP_TEAM_NONE;
 	int red = PresentOnTeam(MP_TEAM_RED), blue = PresentOnTeam(MP_TEAM_BLUE);
 	if(red == 0 && blue > 0)
@@ -177,7 +207,7 @@ CMatchState::GetStandings(uint8_t outIds[MP_MAX_PLAYERS]) const
 		while(j > 0){
 			const SMatchPlayer *q = order[j - 1];
 			bool ahead;
-			if(m_mode == MATCH_TDM && p->team != q->team)
+			if(MpIsTeamMode(m_mode) && p->team != q->team)
 				ahead = p->team == firstTeam;
 			else
 				ahead = Ahead(*p, *q);

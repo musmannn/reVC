@@ -14,6 +14,7 @@
 #include "FreeroamMenu.h"
 #include "NetRace.h"
 #include "NetMatch.h"
+#include "RouteRecorder.h"
 #include "GameProtocol.h"
 #include "Frontend.h"
 #include "Messages.h"
@@ -169,7 +170,7 @@ public:
 			CNetRace::OnMessage(from, type, body);
 			return;
 		}
-		if(type >= GMSG_MATCH_FIRST && type <= GMSG_LAST){
+		if(type >= GMSG_MATCH_FIRST && type <= GMSG_MATCH_LAST){
 			CNetMatch::OnMessage(from, type, body);
 			return;
 		}
@@ -238,8 +239,10 @@ public:
 		}
 		case GMSG_RESPAWNED: {
 			SRespawned msg;
-			if(msg.Read(body))
+			if(msg.Read(body)){
 				CNetCombat::OnRespawned(from, msg);
+				CNetMatch::OnRespawned(from);
+			}
 			break;
 		}
 		case GMSG_SHOT: {
@@ -307,6 +310,19 @@ CNetGame::ServiceDuringLoad(void)
 	sLoading = true;
 	sClient.Service(NetNow(), &sListener);
 	sLoading = false;
+}
+
+void
+CNetGame::KeepAliveWhileLoading(void)
+{
+	static uint32 lastMs;
+	if(sInGame || sLoading || !sClient.IsActive())
+		return;
+	uint32 now = NetNow();
+	if(now - lastMs < 100)
+		return;
+	lastMs = now;
+	ServiceDuringLoad();
 }
 
 void
@@ -386,6 +402,7 @@ CNetGame::Process(void)
 	CNetCombat::Update();
 	CNetRace::Process();
 	CNetMatch::Process();
+	CRouteRecorder::Process();
 	if(now - sLastStateSentMs >= 1000 / MP_SNAPSHOT_HZ){
 		sLastStateSentMs = now;
 		SendLocalState();
@@ -437,6 +454,12 @@ bool
 CNetGame::IsConnected(void)
 {
 	return sClient.IsActive();
+}
+
+bool
+CNetGame::IsDedicated(void)
+{
+	return sClient.IsDedicatedSession();
 }
 
 bool
@@ -524,10 +547,16 @@ int
 CNetGame::NumPlayers(void)
 {
 	int n = 0;
-	for(int i = 0; i < MP_MAX_PLAYERS; i++)
+	for(int i = IsDedicated() ? 1 : 0; i < MP_MAX_PLAYERS; i++)
 		if(sRoster[i].used)
 			n++;
 	return n;
+}
+
+int
+CNetGame::MaxPlayers(void)
+{
+	return IsDedicated() ? MP_MAX_PLAYERS - 1 : MP_MAX_PLAYERS;
 }
 
 const char*

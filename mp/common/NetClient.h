@@ -53,6 +53,8 @@ private:
 	bool m_haveStartTime;
 	bool m_netAcquired;
 	uint8_t m_myId;
+	uint8_t m_hostFlags;	// MP_SESSION_* asked for by Host()
+	uint8_t m_sessionFlags;	// MP_SESSION_* of the current/last session
 	uint32_t m_startMs;
 	uint32_t m_lastPingMs;
 	uint32_t m_generation;	// bumped per connection; detects re-entrant Host()/Join()
@@ -76,7 +78,8 @@ public:
 
 	// Start an async connect. False only on an immediate error (already
 	// active, ENet init failure, unresolvable address).
-	bool Host(const char *relayAddr, uint16_t port, const char *name);
+	// flags: MP_SESSION_* (MP_SESSION_DEDICATED for revc-server).
+	bool Host(const char *relayAddr, uint16_t port, const char *name, uint8_t flags = 0);
 	bool Join(const char *relayAddr, uint16_t port, const char *code, const char *name);
 	// Pumps ENet and dispatches callbacks. nowMs is the caller's millisecond
 	// clock; the host's nowMs is the session time.
@@ -99,6 +102,9 @@ public:
 	// MyId() and Code() keep the last session's values after it ends.
 	uint8_t MyId(void) const { return m_myId; }
 	const char *Code(void) const { return m_code; }
+	uint8_t SessionFlags(void) const { return m_sessionFlags; }
+	// Hosted by revc-server: id 0 is the server, not a player.
+	bool IsDedicatedSession(void) const { return (m_sessionFlags & MP_SESSION_DEDICATED) != 0; }
 	const CSessionClock &Clock(void) const { return m_clock; }
 	uint32_t SessionTime(uint32_t nowMs) const { return m_clock.ToSession(nowMs); }
 };

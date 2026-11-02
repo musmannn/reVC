@@ -25,7 +25,7 @@ compiler, and no game files.
 git clone --branch multiplayer https://github.com/musmannn/reVC.git
 cd reVC
 cmake -S mp -B build-mp -DCMAKE_BUILD_TYPE=Release
-cmake --build build-mp --config Release --target revc-relay revc-fakeclient
+cmake --build build-mp --config Release --target revc-relay revc-server revc-fakeclient
 ```
 
 The binaries end up in `build-mp/`, or in `build-mp/Release/` with Visual Studio.
@@ -136,7 +136,41 @@ PC, change the *Relay server* setting on the Multiplayer menu to `host` or
 use the same relay. (The menu arrives with Plan 2, and the default address
 gets filled in once the VPS exists.)
 
-## 4. Legal note
+## 4. A dedicated server (optional)
+
+Normally the player who hosts is in charge of the session, and the session
+ends when they quit. `revc-server` hosts a session instead: it stays up, has
+no ped, and can start races and matches by itself. Players join with its code
+like any other. The server takes one of the 8 places, so 7 people can play.
+
+```
+revc-server [--relay HOST[:PORT] | --with-relay PORT] [--name NAME] [--motd TEXT]
+            [--hour H] [--fixed-time] [--weather N]
+            [--routes DIR] [--arenas DIR] [--playlist LIST] [--playlist-gap SEC]
+            [--min-players N] [--code-file PATH] [--quiet]
+```
+
+- `--with-relay PORT` runs the relay in the same process, so one program is
+  enough on a VPS: `revc-server --with-relay 7777`. With `--relay` it uses a
+  relay that's already running.
+- It prints `CODE VICE-XXXX` (and writes it to `--code-file`) whenever it gets a
+  code. If the relay drops it, it makes a new session after 5 seconds, with a
+  new code.
+- `--playlist "race:Ocean Drive Sprint,dm,koth:Washington Beach,stunt"` starts
+  those events in turn, `--playlist-gap` seconds (default 60) after the last
+  one ended, when at least `--min-players` (default 2) are in. Routes and
+  arenas are looked up by name in `--routes` / `--arenas` (default
+  `data/mp/races` and `data/mp/arenas`, so run it from the game folder or point
+  them at a copy of the package's `data/mp`), or given as a `.route` path.
+  Players can still start their own events from F2; their routes travel with
+  the request, so the server doesn't need their files.
+
+For systemd, use the relay unit above with
+`ExecStart=/usr/local/bin/revc-server --with-relay 7777 --name "Vice Server" --code-file /var/lib/revc/code.txt`
+(and give the `revc` user that folder). Read the current code with
+`cat /var/lib/revc/code.txt` or `journalctl -u revc-relay`.
+
+## 5. Legal note
 
 reVC is a reverse-engineered build of a commercial game. Players must own the
 original game files, and neither the relay nor reVC distributes them. Even

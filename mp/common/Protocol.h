@@ -62,6 +62,14 @@ enum eLeaveReason
 // ENet disconnect data a client sends when it leaves on purpose.
 static const uint32_t MP_DISCONNECT_QUIT = 1;
 
+// ENet peer timeouts, used by both the relay and the client. A peer that
+// stops acknowledging is dropped after MP_PEER_TIMEOUT_MIN_MS at the earliest
+// and MP_PEER_TIMEOUT_MAX_MS at the latest. The floor is generous because a
+// game can stall for several seconds while it loads the world (ENet's own
+// default is 5 s, which a slow first load can exceed).
+static const uint32_t MP_PEER_TIMEOUT_MIN_MS = 15000;
+static const uint32_t MP_PEER_TIMEOUT_MAX_MS = 30000;
+
 struct SEnvelope
 {
 	uint8_t route;
@@ -75,12 +83,19 @@ struct SEnvelope
 // Each message's Write() writes the type byte first; Read() reads the fields
 // after the type byte and returns false on any truncation or overlong string.
 
+// Session flags, set by the creator and given to every joiner.
+enum
+{
+	MP_SESSION_DEDICATED = 1	// hosted by revc-server: id 0 has no ped
+};
+
 struct SMsgCreateSession
 {
 	uint16_t version;
 	char name[MP_MAX_NAME_LEN + 1];
+	uint8_t flags;		// MP_SESSION_*
 
-	SMsgCreateSession(void) : version(MP_PROTOCOL_VERSION) { name[0] = '\0'; }
+	SMsgCreateSession(void) : version(MP_PROTOCOL_VERSION), flags(0) { name[0] = '\0'; }
 	void Write(CByteWriter &w) const;
 	bool Read(CByteReader &r);
 };
@@ -110,8 +125,9 @@ struct SMsgJoinResult
 {
 	uint8_t result;		// eJoinResult
 	uint8_t playerId;	// MP_PLAYER_NONE unless JOIN_OK
+	uint8_t flags;		// the session's MP_SESSION_* (0 unless JOIN_OK)
 
-	SMsgJoinResult(void) : result(JOIN_OK), playerId(MP_PLAYER_NONE) {}
+	SMsgJoinResult(void) : result(JOIN_OK), playerId(MP_PLAYER_NONE), flags(0) {}
 	void Write(CByteWriter &w) const;
 	bool Read(CByteReader &r);
 };

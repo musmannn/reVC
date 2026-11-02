@@ -31,6 +31,7 @@ private:
 	enum eState { STATE_IDLE, STATE_INVITING, STATE_RUNNING };
 	eState m_state;
 	uint16_t m_raceId;
+	uint8_t m_startedBy;
 	SRaceRoute m_route;
 	uint32_t m_deadline;
 	uint8_t m_accepted[MP_MAX_PLAYERS];
