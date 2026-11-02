@@ -41,6 +41,10 @@
 #include "Stats.h"
 #include "CarCtrl.h"
 #include "TrafficLights.h"
+#ifdef MULTIPLAYER
+#include "NetChat.h"
+#include "MpMenu.h"
+#endif
 
 #ifdef GTA_PS2
 #include "eetypes.h"
@@ -1296,6 +1300,11 @@ int Cheat_strncmp(char* sourceStr, char* origCheatStr)
 // TODO(Miami): Mobile has changed some of the cheats to include debugging things
 void CPad::AddToPCCheatString(char c)
 {
+#ifdef MULTIPLAYER
+	// Typing chat or a Multiplayer menu field never triggers cheats.
+	if (CNetChat::IsTyping() || MpMenuIsEditing())
+		return;
+#endif
 	for (int32 i = ARRAY_SIZE(KeyBoardCheatString) - 2; i >= 0; i--)
 		KeyBoardCheatString[i + 1] = KeyBoardCheatString[i];
 

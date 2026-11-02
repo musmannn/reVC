@@ -502,6 +502,18 @@ static_assert(false, "SUPPORT_XBOX_SCRIPT and SUPPORT_MOBILE_SCRIPT are mutually
 	#define USE_UNNAMED_SEM // named semaphores are unsupported on the switch
 #endif
 
+// Multiplayer (desktop only). See docs/multiplayer/README.md. The build defines
+// NO_MULTIPLAYER when the mp/ libraries aren't part of it. Its menu page needs
+// CUSTOM_FRONTEND_OPTIONS.
+#if !defined(ANDROID) && !defined(__SWITCH__) && !defined(RW_PS2) && !defined(NO_MULTIPLAYER) && defined(CUSTOM_FRONTEND_OPTIONS)
+	#define MULTIPLAYER
+#endif
+
+// "made by usman" as the start menu title (top right). The page lives in MenuScreensCustom.cpp.
+#ifdef CUSTOM_FRONTEND_OPTIONS
+	#define MADE_BY_TEXT
+#endif
+
 #endif // VANILLA_DEFINES
 
 #if defined(AUDIO_OAL) && !defined(EXTERNAL_3D_SOUND)

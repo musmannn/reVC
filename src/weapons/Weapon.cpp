@@ -36,6 +36,10 @@
 #include "Sprite.h"
 #include "Pickups.h"
 #include "SaveBuf.h"
+#ifdef MULTIPLAYER
+#include "NetGame.h"
+#include "NetCombat.h"
+#endif
 
 float fReloadAnimSampleFraction[5] = {  0.5f,  0.7f,  0.75f,  0.75f,  0.7f };
 float fSeaSparrowAimingAngle = 10.0f;
@@ -324,6 +328,10 @@ CWeapon::Fire(CEntity *shooter, CVector *fireSource)
 		if (fired)
 		{
 			bool isPlayer = false;
+#ifdef MULTIPLAYER
+			if (CNetGame::IsActive())
+				CNetCombat::OnLocalShot(shooter, m_eWeaponType, *source);
+#endif
 
 			if (shooter->IsPed())
 			{

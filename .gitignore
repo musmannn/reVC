@@ -364,3 +364,7 @@ codewarrior/Release/
 codewarrior/Debug/
 
 src/extras/GitSHA1.cpp
+
+# Multiplayer standalone build
+build-mp/
+build-mp-*/

@@ -28,6 +28,10 @@
 #include "Bike.h"
 #include "Weather.h"
 #include "GameLogic.h"
+#ifdef MULTIPLAYER
+#include "NetGame.h"
+#include "NetVehicles.h"
+#endif
 #include "Streaming.h"
 
 CVector vecPedCarDoorAnimOffset;
@@ -3635,6 +3639,12 @@ CPed::SetCarJack(CVehicle* car)
 	uint8 doorFlag;
 	eDoors door;
 	CPed *pedInSeat = nil;
+
+#ifdef MULTIPLAYER
+	// Never drag a friend out of their car; ride along instead.
+	if (CNetGame::IsActive() && IsPlayer() && CNetVehicles::OnLocalPlayerWantsToJack(this, car))
+		return;
+#endif
 
 	if (car->IsBoat())
 		return;

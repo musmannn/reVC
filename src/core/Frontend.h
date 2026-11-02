@@ -234,6 +234,9 @@ enum eMenuScreen
 #ifdef MISSION_REPLAY
 	MENUPAGE_MISSION_RETRY,
 #endif
+#ifdef MULTIPLAYER
+	MENUPAGE_MULTIPLAYER,
+#endif
 
 	MENUPAGE_OUTRO, // Originally 34, but CFO needs last screen to be empty to count number of menu pages
 	MENUPAGES

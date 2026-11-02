@@ -5,6 +5,10 @@
 #ifndef PS2_MENU
 #include "crossplatform.h"
 #include "platform.h"
+#ifdef MULTIPLAYER
+#include "MpMenu.h"
+#include "NetGame.h"
+#endif
 #include "Frontend.h"
 #include "Font.h"
 #include "Pad.h"
@@ -3494,6 +3498,12 @@ CMenuManager::Process(void)
 	InitialiseChangedLanguageSettings();
 
 	if (m_bMenuActive) {
+#if defined(MULTIPLAYER) && defined(CUSTOM_FRONTEND_OPTIONS)
+		// A Multiplayer text field is being typed in: keys go to it, not the menu.
+		if (MpMenuIsEditing())
+			MpMenuUpdateEditing();
+		else
+#endif
 		UserInput();
 		ProcessFileActions();
 		DMAudio.Service();
@@ -5660,6 +5670,13 @@ CMenuManager::SwitchMenuOnAndOff()
 		}
 	}
 
+#ifdef MULTIPLAYER
+	// Saving is disabled in a multiplayer session.
+	if (m_bActivateSaveMenu && CNetGame::IsActive()) {
+		m_bActivateSaveMenu = false;
+		CNetGame::ShowNoSave();
+	}
+#endif
 	// Just entered the save/safe zone
 	if (m_bActivateSaveMenu) {
 		DoRWStuffStartOfFrame(0, 0, 0, 0, 0, 0, 255);

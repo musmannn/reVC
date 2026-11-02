@@ -30,6 +30,9 @@
 #include "IniFile.h"
 #include "CarCtrl.h"
 #include "Population.h"
+#ifdef MULTIPLAYER
+#include "MpMenu.h"
+#endif
 
 // Menu screens array is at the bottom of the file.
 
@@ -661,8 +664,15 @@ CMenuScreenCustom aScreens[] = {
    },
 
 	// MENUPAGE_START_MENU = 29
+#ifdef MADE_BY_TEXT
+	{ "FEM_MBU", MENUPAGE_DISABLED, nil, nil,
+#else
 	{ "FEM_MM", MENUPAGE_DISABLED, nil, nil,
+#endif
 		  MENUACTION_CHANGEMENU,	"FEP_STG",	{nil, SAVESLOT_NONE,	MENUPAGE_NEW_GAME}, 320, 170, MENUALIGN_CENTER,
+#ifdef MULTIPLAYER
+		  MENUACTION_CHANGEMENU,	"MP_MENU",	{nil, SAVESLOT_NONE,	MENUPAGE_MULTIPLAYER}, 0, 0, MENUALIGN_CENTER,
+#endif
 		  MENUACTION_CHANGEMENU,	"FEP_OPT",	{nil, SAVESLOT_NONE,	MENUPAGE_OPTIONS}, 0, 0, MENUALIGN_CENTER,
 		  MENUACTION_CHANGEMENU,	"FEP_QUI",	{nil, SAVESLOT_NONE,	MENUPAGE_EXIT}, 0, 0, MENUALIGN_CENTER,
    },
@@ -690,6 +700,9 @@ CMenuScreenCustom aScreens[] = {
 		MENUACTION_CHANGEMENU,	"FEH_MAP",	{nil, SAVESLOT_NONE, MENUPAGE_MAP}, 0, 0, MENUALIGN_CENTER,
 		MENUACTION_CHANGEMENU,	"FEP_STA",	{nil, SAVESLOT_NONE, MENUPAGE_STATS}, 0, 0, MENUALIGN_CENTER,
 		MENUACTION_CHANGEMENU,	"FEH_BRI",	{nil, SAVESLOT_NONE, MENUPAGE_BRIEFS}, 0, 0, MENUALIGN_CENTER,
+#ifdef MULTIPLAYER
+		MENUACTION_CHANGEMENU,	"MP_MENU",	{nil, SAVESLOT_NONE, MENUPAGE_MULTIPLAYER}, 0, 0, MENUALIGN_CENTER,
+#endif
 		MENUACTION_CHANGEMENU,	"FET_OPT",	{nil, SAVESLOT_NONE, MENUPAGE_OPTIONS}, 0, 0, MENUALIGN_CENTER,
 		MENUACTION_CHANGEMENU,	"FEP_QUI",	{nil, SAVESLOT_NONE, MENUPAGE_EXIT}, 0, 0, MENUALIGN_CENTER,
    },
@@ -808,6 +821,21 @@ CMenuScreenCustom aScreens[] = {
 		MENUACTION_LABEL,			"FESZ_RM",  { nil, SAVESLOT_NONE, MENUPAGE_NONE }, 0, 0, 0,
 		MENUACTION_CHANGEMENU,		"FEM_YES",  { nil, SAVESLOT_NONE, MENUPAGE_LOADING_IN_PROGRESS }, 320, 200, MENUALIGN_CENTER,
 		MENUACTION_REJECT_RETRY,	"FEM_NO",   { nil, SAVESLOT_NONE, MENUPAGE_NONE }, 320, 225, MENUALIGN_CENTER,
+	},
+#endif
+
+#ifdef MULTIPLAYER
+	// MENUPAGE_MULTIPLAYER
+	{ "MP_MENU", MENUPAGE_NONE, new CCustomScreenLayout({40, 78, 25, true, true}), MpMenuGoBack,
+		MENUACTION_CFO_DYNAMIC,	"MP_NAME", { new CCFODynamic(nil, nil, nil, MpMenuNameDraw, MpMenuNamePress) }, 0, 0, MENUALIGN_LEFT,
+		MENUACTION_CFO_DYNAMIC,	"MP_RLAY", { new CCFODynamic(nil, nil, nil, MpMenuRelayDraw, MpMenuRelayPress) }, 0, 0, MENUALIGN_LEFT,
+		MENUACTION_CFO_DYNAMIC,	"MP_HOST", { new CCFODynamic(nil, nil, nil, MpMenuHostDraw, MpMenuHostPress) }, 0, 0, MENUALIGN_LEFT,
+		MENUACTION_CFO_DYNAMIC,	"MP_CODE", { new CCFODynamic(nil, nil, nil, MpMenuCodeDraw, MpMenuCodePress) }, 0, 0, MENUALIGN_LEFT,
+		MENUACTION_CFO_DYNAMIC,	"MP_JOIN", { new CCFODynamic(nil, nil, nil, MpMenuJoinDraw, MpMenuJoinPress) }, 0, 0, MENUALIGN_LEFT,
+		MENUACTION_CFO_DYNAMIC,	"MP_LEAV", { new CCFODynamic(nil, nil, nil, MpMenuLeaveDraw, MpMenuLeavePress) }, 0, 0, MENUALIGN_LEFT,
+		// Read-only status, last so it isn't the row selected on entry.
+		MENUACTION_CFO_DYNAMIC,	"MP_STAT", { new CCFODynamic(nil, nil, nil, MpMenuStatusDraw, nil) }, 0, 0, MENUALIGN_LEFT,
+		MENUACTION_GOBACK,		"FEDS_TB", {nil, SAVESLOT_NONE, MENUPAGE_NONE}, 320, 0, MENUALIGN_CENTER,
 	},
 #endif
 

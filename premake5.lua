@@ -377,6 +377,45 @@ project "librw"
 	filter  {}
 end
 
+-- Multiplayer: ENet and the engine-free mp/common layer (see docs/multiplayer/README.md).
+-- Runtime library settings mirror the reVC project below.
+project "enet"
+	kind "StaticLib"
+	language "C"
+	files { "vendor/enet/*.c" }
+	includedirs { "vendor/enet/include" }
+
+	filter "platforms:win*"
+		defines { "_CRT_SECURE_NO_WARNINGS", "_WINSOCK_DEPRECATED_NO_WARNINGS" }
+		if(_OPTIONS["with-librw"]) then
+			staticruntime "on"
+		end
+
+	filter "platforms:win*glfw*"
+		staticruntime "off"
+
+	filter "platforms:not win*"
+		defines { "HAS_FCNTL=1", "HAS_POLL=1", "HAS_GETADDRINFO=1", "HAS_GETNAMEINFO=1",
+		          "HAS_INET_PTON=1", "HAS_INET_NTOP=1", "HAS_MSGHDR_FLAGS=1", "HAS_SOCKLEN_T=1" }
+	filter {}
+
+project "mpcommon"
+	kind "StaticLib"
+	language "C++"
+	cppdialect "C++11"
+	files { "mp/common/*.cpp", "mp/common/*.h" }
+	includedirs { "mp/common", "vendor/enet/include" }
+
+	filter "platforms:win*"
+		defines { "_CRT_SECURE_NO_WARNINGS", "_WINSOCK_DEPRECATED_NO_WARNINGS" }
+		if(_OPTIONS["with-librw"]) then
+			staticruntime "on"
+		end
+
+	filter "platforms:win*glfw*"
+		staticruntime "off"
+	filter {}
+
 local function addSrcFiles( prefix )
 	return prefix .. "/*cpp", prefix .. "/*.h", prefix .. "/*.c", prefix .. "/*.ico", prefix .. "/*.rc"
 end
@@ -468,6 +507,7 @@ project "reVC"
 	files { addSrcFiles("src/vehicles") }
 	files { addSrcFiles("src/weapons") }
 	files { addSrcFiles("src/extras") }
+	files { addSrcFiles("src/multiplayer") }
 	if(not _OPTIONS["no-git-hash"]) then
 		files { "src/extras/GitSHA1.cpp" } -- this won't be in repo in first build
 	else
@@ -497,6 +537,13 @@ project "reVC"
 	includedirs { "src/vehicles" }
 	includedirs { "src/weapons" }
 	includedirs { "src/extras" }
+	includedirs { "src/multiplayer", "mp/common", "vendor/enet/include" }
+
+	dependson { "mpcommon", "enet" }
+	links { "mpcommon", "enet" }
+	filter "platforms:win*"
+		links { "ws2_32", "winmm" }
+	filter {}
 
 	filter "action:xcode4"
 		externalincludedirs { "src/audio/eax", "src/fakerw", Librw }

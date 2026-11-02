@@ -183,6 +183,18 @@ if(${PROJECT}_VENDORED_LIBRW)
 else()
     find_package(librw REQUIRED)
 endif()
+
+# Multiplayer targets desktop (Windows, Linux, macOS) only.
+if(NINTENDO_SWITCH OR PS2 OR ANDROID)
+    set(${PROJECT}_MULTIPLAYER_DEFAULT OFF)
+else()
+    set(${PROJECT}_MULTIPLAYER_DEFAULT ON)
+endif()
+option(${PROJECT}_MULTIPLAYER "Build multiplayer (relay, tools, game integration)" ${${PROJECT}_MULTIPLAYER_DEFAULT})
+if(${PROJECT}_MULTIPLAYER)
+    add_subdirectory(mp)
+endif()
+
 add_subdirectory(src)
 
 if(${PROJECT}_INSTALL)

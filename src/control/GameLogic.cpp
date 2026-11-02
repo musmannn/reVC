@@ -31,6 +31,10 @@
 #include "MBlur.h"
 #include "screendroplets.h"
 #include "SaveBuf.h"
+#ifdef MULTIPLAYER
+#include "NetGame.h"
+#include "NetCombat.h"
+#endif
 
 uint8 CGameLogic::ActivePlayers;
 uint8 CGameLogic::ShortCutState;
@@ -141,6 +145,43 @@ CGameLogic::Update()
 		if (CTimer::GetTimeInMilliseconds() - pPlayerInfo.m_nWBTime >= AddExtraDeathDelay() + 0x1000) {
 #else
 		if (CTimer::GetTimeInMilliseconds() - pPlayerInfo.m_nWBTime >= 0x1000) {
+#endif
+#ifdef MULTIPLAYER
+			if (CNetGame::IsActive()) {
+				// Multiplayer respawn: at a spawn point with the loadout. No money
+				// or weapon loss, no clock jump, no hospital taxi.
+				pPlayerInfo.m_WBState = WBSTATE_PLAYING;
+				if (pPlayerInfo.m_pPed->bInVehicle) {
+					CVehicle *pVehicle = pPlayerInfo.m_pPed->m_pMyVehicle;
+					if (pVehicle != nil) {
+						if (pVehicle->pDriver == pPlayerInfo.m_pPed) {
+							pVehicle->pDriver = nil;
+							if (pVehicle->GetStatus() != STATUS_WRECKED)
+								pVehicle->SetStatus(STATUS_ABANDONED);
+						} else
+							pVehicle->RemovePassenger(pPlayerInfo.m_pPed);
+					}
+				}
+				CEventList::Initialise();
+#ifdef SCREEN_DROPLETS
+				ScreenDroplets::Initialise();
+#endif
+				CCarCtrl::ClearInterestingVehicleList();
+				CNetCombat::GetRespawnPoint(vecRestartPos, fRestartFloat);
+				RestorePlayerStuffDuringResurrection(pPlayerInfo.m_pPed, vecRestartPos, fRestartFloat);
+				SortOutStreamingAndMemory(pPlayerInfo.GetPos());
+				TheCamera.m_fCamShakeForce = 0.0f;
+				TheCamera.SetMotionBlur(0, 0, 0, 0, MOTION_BLUR_NONE);
+				CPad::GetPad(0)->StopShaking(0);
+				CReferences::RemoveReferencesToPlayer();
+				CPopulation::m_CountDownToPedsAtStart = 10;
+				CCarCtrl::CountDownToCarsAtStart = 10;
+				CPad::GetPad(CWorld::PlayerInFocus)->DisablePlayerControls = PLAYERCONTROL_ENABLED;
+				TheCamera.SetFadeColour(200, 200, 200);
+				TheCamera.Fade(4.0f, FADE_IN);
+				CNetCombat::OnLocalRespawned();
+				break;
+			}
 #endif
 			pPlayerInfo.m_WBState = WBSTATE_PLAYING;
 			if (pPlayerInfo.m_bGetOutOfHospitalFree) {
